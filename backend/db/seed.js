@@ -44,6 +44,26 @@ async function main() {
   console.log('Groups created');
 
   // ================================
+  // Create default superadmin user
+  // ================================
+  const hashedSuperAdminPassword = await bcrypt.hash('SuperAdmin123!PasswordSuperStrong@!', 10);
+
+  const superAdminUser = await prisma.user.upsert({
+    where: { email: 'superadmin@fakemail.it' },
+    update: {},
+    create: {
+      email: 'superadmin@fakemail.it',
+      password: hashedSuperAdminPassword,
+      firstName: 'Super',
+      lastName: 'Admin',
+      role: 'SUPERADMIN',
+      status: 'SUBSCRIBED',
+      refreshToken: null
+    }
+  });
+  console.log('Super Admin user created:', superAdminUser.email);
+
+  // ================================
   // Create default admin user
   // ================================
   const hashedAdminPassword = await bcrypt.hash('admin123', 10);

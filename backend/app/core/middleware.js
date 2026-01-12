@@ -26,10 +26,20 @@ const verifyToken = (req, res, next) => {
    ADMIN CHECK
 ================================ */
 const isAdmin = (req, res, next) => {
-  if (req.user.role !== 'ADMIN') {
-    return res.status(403).json({ message: 'Accesso admin richiesto' });
+  if (req.user.role === 'ADMIN' || req.user.role === 'SUPERADMIN') {
+    return next();
   }
-  next();
+  return res.status(403).json({ message: 'Accesso admin richiesto' });
 };
 
-module.exports = { verifyToken, isAdmin };
+/* ================================
+   SUPERADMIN CHECK
+================================ */
+const isSuperAdmin = (req, res, next) => {
+  if (req.user.role === 'SUPERADMIN') {
+    return next();
+  }
+  return res.status(403).json({ message: 'Accesso super admin richiesto' });
+};
+
+module.exports = { verifyToken, isAdmin, isSuperAdmin };

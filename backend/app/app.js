@@ -6,7 +6,7 @@ const cookieParser = require('cookie-parser');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const adminRoutes = require('./routes/admin');
-const templateRoutes = require('./routes/template');
+const superadminRoutes = require('./routes/superadmin');
 
 const app = express();
 
@@ -43,7 +43,7 @@ app.use(cookieParser()); // Per leggere i cookie
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/admin/template', templateRoutes);
+app.use('/api/superadmin', superadminRoutes);
 
 app.get('/health', (_, res) => {
   res.json({ status: 'ok' });
