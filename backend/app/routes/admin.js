@@ -1,7 +1,6 @@
 const express = require('express');
 const { PrismaClient, SubscriptionStatus, UserStatus, EventStatus, Role } = require('@prisma/client');
 const prisma = new PrismaClient();
-const { verifyToken, isAdmin } = require('../core/middleware');
 const { hashPassword } = require('../utils/password');
 const { createSubscriptionWithGroups } = require('../utils/subscription');
 
@@ -76,7 +75,7 @@ const router = express.Router();
  *       500:
  *         description: Errore server
  */
-router.post('/users', verifyToken, isAdmin, async (req, res) => {
+router.post('/users', async (req, res) => {
   try {
     const { email, password, firstName, lastName, role, startDate, endDate, amount, currency, status, groups } = req.body;
 
@@ -215,7 +214,7 @@ router.post('/users', verifyToken, isAdmin, async (req, res) => {
  *       500:
  *         description: Errore server
  */
-router.put('/users/:id', verifyToken, isAdmin, async (req, res) => {
+router.put('/users/:id', async (req, res) => {
   try {
     const userId = req.params.id;
 
@@ -395,7 +394,7 @@ router.put('/users/:id', verifyToken, isAdmin, async (req, res) => {
  *       500:
  *         description: Errore server
  */
-router.get('/users', verifyToken, isAdmin, async (req, res) => {
+router.get('/users', async (req, res) => {
   try {
     const users = await prisma.user.findMany({
       include: {
@@ -472,7 +471,7 @@ router.get('/users', verifyToken, isAdmin, async (req, res) => {
  *       404:
  *         description: Utente non trovato
  */
-router.delete('/users/:id', verifyToken, isAdmin, async (req, res) => {
+router.delete('/users/:id', async (req, res) => {
   await prisma.user.update({
     where: { id: req.params.id },
     data: { status: UserStatus.CANCELLED }
@@ -513,7 +512,7 @@ router.delete('/users/:id', verifyToken, isAdmin, async (req, res) => {
  *       500:
  *         description: Errore server
  */
-router.get('/users/statuses', verifyToken, isAdmin, (req, res) => {
+router.get('/users/statuses', (req, res) => {
   try {
     res.status(200).json({
       userStatuses: Object.values(UserStatus)
@@ -572,7 +571,7 @@ router.get('/users/statuses', verifyToken, isAdmin, (req, res) => {
  *       201:
  *         description: Evento creato
  */
-router.post('/events', verifyToken, isAdmin, async (req, res) => {
+router.post('/events', async (req, res) => {
   const event = await prisma.event.create({
     data: {
       ...req.body,
@@ -610,7 +609,7 @@ router.post('/events', verifyToken, isAdmin, async (req, res) => {
  *       200:
  *         description: Evento aggiornato
  */
-router.patch('/events/:id', verifyToken, isAdmin, async (req, res) => {
+router.patch('/events/:id', async (req, res) => {
   const event = await prisma.event.update({
     where: { id: Number(req.params.id) },
     data: req.body
@@ -642,50 +641,13 @@ router.patch('/events/:id', verifyToken, isAdmin, async (req, res) => {
  *       200:
  *         description: Evento cancellato
  */
-router.delete('/events/:id', verifyToken, isAdmin, async (req, res) => {
+router.delete('/events/:id', async (req, res) => {
   await prisma.event.update({
     where: { id: Number(req.params.id) },
     data: { status: EventStatus.CANCELLED }
   });
 
   res.json({ message: 'Evento cancellato' });
-});
-
-/* ================================
-   CREATE GROUP
-================================ */
-/**
- * @swagger
- * /admin/groups:
- *   post:
- *     summary: Crea un gruppo
- *     tags:
- *       - Admin
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - name
- *             properties:
- *               name:
- *                 type: string
- *               description:
- *                 type: string
- *     responses:
- *       201:
- *         description: Gruppo creato
- */
-router.post('/groups', verifyToken, isAdmin, async (req, res) => {
-  const group = await prisma.group.create({
-    data: req.body
-  });
-
-  res.status(201).json(group);
 });
 
 /* ================================
@@ -728,7 +690,7 @@ router.post('/groups', verifyToken, isAdmin, async (req, res) => {
  *       500:
  *         description: Errore server
  */
-router.get('/groups', verifyToken, isAdmin, async (req, res) => {
+router.get('/groups', async (req, res) => {
   try {
     const groups = await prisma.group.findMany({
       orderBy: {
@@ -740,6 +702,253 @@ router.get('/groups', verifyToken, isAdmin, async (req, res) => {
   } catch (error) {
     console.error('Admin get groups error:', error);
     res.status(500).json({ message: 'Errore nel recupero dei gruppi' });
+  }
+});
+
+/* ================================
+   CREATE GROUP
+================================ */
+/**
+ * @swagger
+ * /admin/groups:
+ *   post:
+ *     summary: Crea un gruppo
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Gruppo creato
+ *       409:
+ *         description: Nome gruppo già esistente
+ *       500:
+ *         description: Errore server
+ */
+router.post('/groups', async (req, res) => {
+  const { name, description } = req.body;
+
+  if(!name || name.trim() === '') {
+    return res.status(400).json({
+      message: 'Il nome del gruppo è obbligatorio',
+      field: 'name',
+    });
+  }
+
+  try {
+    const group = await prisma.group.create({
+      data: {
+        name,
+        description,
+      },
+    });
+
+    res.status(201).json(group);
+  } catch (error) {
+
+    // UNIQUE constraint (name)
+    if (error.code === 'P2002') {
+      return res.status(409).json({
+        message: `Il gruppo "${name}" esiste già`,
+        field: 'name',
+      });
+    }
+
+    res.status(500).json({
+      message: 'Errore durante la creazione del gruppo',
+    });
+  }
+});
+
+
+/* ================================
+   UPDATE GROUP
+================================ */
+/**
+ * @swagger
+ * /admin/groups/{id}:
+ *   put:
+ *     summary: Aggiorna un gruppo
+ *     description: >
+ *       Aggiorna il nome e/o la descrizione di un gruppo esistente.
+ *       Accessibile solo agli amministratori.
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: number
+ *         description: ID del gruppo
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Gruppo aggiornato con successo
+ *       404:
+ *         description: Gruppo non trovato
+ *       500:
+ *         description: Errore server
+ */
+router.put('/groups/:id', async (req, res) => {
+  const groupId = Number(req.params.id);
+
+  if(!req.body.name || req.body.name.trim() === '') {
+    return res.status(400).json({
+      message: 'Il nome del gruppo è obbligatorio',
+      field: 'name',
+    });
+  }
+
+  try {
+    const group = await prisma.group.update({
+      where: { id: groupId },
+      data: req.body,
+    });
+
+    res.status(200).json(group);
+  } catch (error) {
+    console.error('Admin update group error:', error);
+
+    if (error.code === 'P2025') {
+      return res.status(404).json({ message: 'Gruppo non trovato' });
+    }
+
+    res.status(500).json({ message: 'Errore durante aggiornamento gruppo' });
+  }
+});
+
+/* ================================
+   DELETE GROUP (CHECK ASSOCIATIONS)
+================================ */
+/**
+ * @swagger
+ * /admin/groups/{id}:
+ *   delete:
+ *     summary: Elimina un gruppo (con controllo utenti associati)
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: number
+ *     responses:
+ *       204:
+ *         description: Gruppo eliminato
+ *       409:
+ *         description: Gruppo con utenti associati
+ *       404:
+ *         description: Gruppo non trovato
+ */
+router.delete('/groups/:id', async (req, res) => {
+  const groupId = Number(req.params.id);
+
+  try {
+    const assignments = await prisma.userGroup.findMany({
+      where: { groupId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+    if (assignments.length > 0) {
+      return res.status(409).json({
+        message: 'Il gruppo ha utenti associati',
+        users: assignments.map(a => a.user),
+        total: assignments.length,
+      });
+    }
+
+    await prisma.group.delete({
+      where: { id: groupId },
+    });
+
+    res.status(204).send();
+  } catch (error) {
+    console.error('Admin delete group error:', error);
+
+    if (error.code === 'P2025') {
+      return res.status(404).json({ message: 'Gruppo non trovato' });
+    }
+
+    res.status(500).json({ message: 'Errore eliminazione gruppo' });
+  }
+});
+
+/* ================================
+   FORCE DELETE GROUP
+================================ */
+/**
+ * @swagger
+ * /admin/groups/{id}/force:
+ *   delete:
+ *     summary: Elimina un gruppo e tutte le associazioni utenti
+ *     description: >
+ *       Elimina il gruppo e rimuove tutte le associazioni
+ *       utenti-gruppo collegate.
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ */
+router.delete('/groups/:id/force', async (req, res) => {
+  const groupId = Number(req.params.id);
+
+  try {
+    await prisma.$transaction([
+      prisma.userGroup.deleteMany({
+        where: { groupId },
+      }),
+      prisma.group.delete({
+        where: { id: groupId },
+      }),
+    ]);
+
+    res.status(204).send();
+  } catch (error) {
+    console.error('Admin force delete group error:', error);
+
+    if (error.code === 'P2025') {
+      return res.status(404).json({ message: 'Gruppo non trovato' });
+    }
+
+    res.status(500).json({ message: 'Errore eliminazione forzata gruppo' });
   }
 });
 
@@ -790,7 +999,7 @@ router.get('/groups', verifyToken, isAdmin, async (req, res) => {
  *       201:
  *         description: Subscription creata
  */
-router.post('/subscriptions', verifyToken, isAdmin, async (req, res) => {
+router.post('/subscriptions', async (req, res) => {
   const { userId, startDate, endDate, amount, groups } = req.body;
 
   // Uso dell'utility centralizzata per creare subscription e assegnare gruppi

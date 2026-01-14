@@ -3,6 +3,13 @@ const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 
+// Import core middleware and utilities check roles and filtering
+const { Role } = require('@prisma/client');
+const { verifyToken } = require('./core/middleware');
+const { requireRole } = require('./core/roleCheck');
+const { guardRequest } = require('./core/guardRequest');
+const { filterResponse } = require('./core/filterResponse');
+
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const adminRoutes = require('./routes/admin');
@@ -44,6 +51,43 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/superadmin', superadminRoutes);
+
+/* ================================
+   ROUTES
+================================ */
+
+// AUTH → nessun middleware
+app.use('/api/auth', authRoutes);
+
+// USER → autenticato
+app.use(
+  '/api/user',
+  verifyToken,
+  requireRole([Role.USER, Role.ADMIN, Role.SUPERADMIN]),
+  guardRequest(),
+  filterResponse(),
+  userRoutes
+);
+
+// ADMIN → admin + superadmin
+app.use(
+  '/api/admin',
+  verifyToken,
+  requireRole([Role.ADMIN, Role.SUPERADMIN]),
+  guardRequest(),
+  filterResponse(),
+  adminRoutes
+);
+
+// SUPERADMIN → solo superadmin
+app.use(
+  '/api/superadmin',
+  verifyToken,
+  requireRole([Role.SUPERADMIN]),
+  guardRequest(),
+  filterResponse(),
+  superadminRoutes
+);
 
 app.get('/health', (_, res) => {
   res.json({ status: 'ok' });

@@ -1,6 +1,5 @@
 const express = require('express');
 const prisma = require('../prisma');
-const { verifyToken } = require('../core/middleware');
 const { canBookEvent } = require('../utils/subscription');
 
 const router = express.Router();
@@ -37,7 +36,7 @@ const router = express.Router();
  *       401:
  *         description: Non autenticato
  */
-router.get('/events/month', verifyToken, async (req, res) => {
+router.get('/events/month', async (req, res) => {
   const { year, month } = req.query;
 
   const events = await prisma.event.findMany({
@@ -90,7 +89,7 @@ router.get('/events/month', verifyToken, async (req, res) => {
  *       401:
  *         description: Non autenticato
  */
-router.get('/events/day', verifyToken, async (req, res) => {
+router.get('/events/day', async (req, res) => {
   const { year, month, day } = req.query;
 
   const events = await prisma.event.findMany({
@@ -138,7 +137,7 @@ router.get('/events/day', verifyToken, async (req, res) => {
  *       403:
  *         description: Subscription non valida o evento pieno/non disponibile
  */
-router.post('/events/book', verifyToken, async (req, res) => {
+router.post('/events/book', async (req, res) => {
   const { eventId } = req.body;
   const userId = req.user.userId;
 
@@ -184,7 +183,7 @@ router.post('/events/book', verifyToken, async (req, res) => {
  *       404:
  *         description: Prenotazione non trovata
  */
-router.post('/events/cancel', verifyToken, async (req, res) => {
+router.post('/events/cancel', async (req, res) => {
   const { eventId } = req.body;
   const userId = req.user.userId;
 

@@ -9,8 +9,6 @@ const {
 
 const ExcelJS = require('exceljs');
 const multer = require('multer');
-
-const { verifyToken, isSuperAdmin } = require('../core/middleware');
 const { hashPassword } = require('../utils/password');
 const { cellValueToString } = require('../utils/excel');
 
@@ -40,7 +38,7 @@ const upload = multer({ storage: multer.memoryStorage() });
  *       403:
  *         description: Accesso negato
  */
-router.get('/template/download', verifyToken, isSuperAdmin, async (req, res) => {
+router.get('/template/download', async (req, res) => {
   const wb = new ExcelJS.Workbook();
 
   /* ========== USERS ========== */
@@ -142,8 +140,6 @@ router.get('/template/download', verifyToken, isSuperAdmin, async (req, res) => 
  */
 router.post(
   '/template/upload',
-  verifyToken,
-  isSuperAdmin,
   upload.single('file'),
   async (req, res) => {
     if (!req.file) {
