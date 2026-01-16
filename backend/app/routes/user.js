@@ -1,5 +1,6 @@
 const express = require('express');
-const prisma = require('../prisma');
+const { PrismaClient, SubscriptionStatus, UserStatus, EventStatus, Role, GroupLevel } = require('@prisma/client');
+const prisma = new PrismaClient();
 const { canBookEvent } = require('../utils/subscription');
 
 const router = express.Router();
@@ -37,19 +38,32 @@ const router = express.Router();
  *         description: Non autenticato
  */
 router.get('/events/month', async (req, res) => {
-  const { year, month } = req.query;
+  const { year, month, userEmail } = req.query;
 
   const events = await prisma.event.findMany({
     where: {
-      status: 'SCHEDULED',
+      status: EventStatus.SCHEDULED,
       date: {
         gte: new Date(year, month - 1, 1),
-        lt: new Date(year, month, 1)
+        lt: new Date(year, month, 1),
+      }
+    },
+    include: {
+      signups: {
+        select: {
+          user: { select: { email: true } }
+        }
       }
     }
   });
 
-  res.json({ events });
+  // Trasforma per il FE
+  const formattedEvents = events.map(ev => ({
+    ...ev,
+    partecipanti: ev.signups.map(s => s.user.email)
+  }));
+
+  res.json({ events: formattedEvents });
 });
 
 /* ================================
@@ -94,12 +108,32 @@ router.get('/events/day', async (req, res) => {
 
   const events = await prisma.event.findMany({
     where: {
-      status: 'SCHEDULED',
-      date: new Date(year, month - 1, day)
+      status: EventStatus.SCHEDULED,
+      date: {
+        gte: new Date(year, month - 1, day),
+        lt: new Date(year, month - 1, Number(day) + 1)
+      }
+    },
+    include: {
+      signups: {
+        select: {
+          user: {
+            select: {
+              email: true
+            }
+          }
+        }
+      }
     }
   });
 
-  res.json({ events });
+  // Trasforma per il FE
+  const formattedEvents = events.map(ev => ({
+    ...ev,
+    partecipanti: ev.signups.map(s => s.user.email)
+  }));
+
+  res.json({ events: formattedEvents });
 });
 
 /* ================================
@@ -194,6 +228,39 @@ router.post('/events/cancel', async (req, res) => {
   });
 
   res.json({ message: 'Prenotazione cancellata' });
+});
+
+/* ================================
+   GET USER LEVELS
+================================ */
+/**
+ * @swagger
+ * /user/levels:
+ *   get:
+ *     summary: Restituisce tutti i livelli utente disponibili
+ *     tags:
+ *       - User
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista dei livelli utente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: string
+ *                 enum: [ALL, OPEN, ADVANCED, DEPTH]
+ *                 example: ADVANCED
+ */
+router.get('/levels', async (req, res) => {
+  try {
+    res.json(Object.values(GroupLevel));
+  } catch (err) {
+    console.error('Errore recupero livelli utente:', err);
+    res.status(500).json({ message: 'Errore server' });
+  }
 });
 
 module.exports = router;

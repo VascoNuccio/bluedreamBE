@@ -34,6 +34,13 @@ enum SubscriptionStatus {
   CANCELLED
 }
 
+enum GroupLevel {
+  ALL
+  OPEN
+  ADVANCED
+  DEPTH
+}
+
 /////////////////////
 // MODELS
 /////////////////////
@@ -60,6 +67,7 @@ model Group {
   id          Int         @id @default(autoincrement())
   name        String      @unique
   description String?
+  level       GroupLevel @default(ALL)
   users       UserGroup[]
 }
 
@@ -94,8 +102,9 @@ model UserGroup {
 }
 
 model EventCategory {
-  id     Int     @id @default(autoincrement())
-  name   String  @unique
+  id    Int    @id @default(autoincrement())
+  code  String @unique
+  label String
   events Event[]
 }
 

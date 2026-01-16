@@ -1,4 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient, GroupLevel } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 
 const prisma = new PrismaClient();
@@ -10,28 +10,44 @@ async function main() {
   // Create Event Categories
   // ================================
   const categories = [
-    { name: 'Corso Open' },
-    { name: 'Corso Advanced' },
-    { name: 'Allenamento' }
+    { code: 'TRY_DIVE', label: 'Lezione Prova' },
+    { code: 'COURSE_OPEN', label: 'Corso Open' },
+    { code: 'COURSE_ADVANCED', label: 'Corso Advanced' },
+    { code: 'COURSE_DEPTH', label: 'Corso Depth' },
+    { code: 'TRAINING_ALL', label: 'Allenamento aperto a tutti' },
+    { code: 'TRAINING_OPEN', label: 'Allenamento Open' },
+    { code: 'TRAINING_ADVANCED', label: 'Allenamento Advanced' },
+    { code: 'TRAINING_DEPTH', label: 'Allenamento Depth' },
+    { code: 'OPEN_WATER_OPEN', label: 'Acque Libere Open' },
+    { code: 'OPEN_WATER_ADVANCE', label: 'Acque Libere Advance' },
+    { code: 'OPEN_WATER_DEPTH', label: 'Acque Libere Depth' },
+    { code: 'Y40_ALL', label: 'Uscita Y-40 aperto a tutti' },
+    { code: 'Y40_OPEN', label: 'Uscita Y-40 Open' },
+    { code: 'Y40_ADVANCED', label: 'Uscita Y-40 Advanced' },
+    { code: 'Y40_DEPTH', label: 'Uscita Y-40 Depth' },
+    { code: 'EVENT_SPECIAL_FREE', label: 'Evento Speciale Gratuito' },
+    { code: 'EVENT_SPECIAL', label: 'Evento Speciale' },
+    { code: 'EVENT_SPECIAL_OPEN', label: 'Evento Speciale Open' },
+    { code: 'EVENT_SPECIAL_ADVANCED', label: 'Evento Speciale Advanced' },
+    { code: 'EVENT_SPECIAL_DEPTH', label: 'Evento Speciale Depth' },
   ];
 
-  for (const category of categories) {
-    await prisma.eventCategory.upsert({
-      where: { name: category.name },
-      update: {},
-      create: category
-    });
-  }
+  await prisma.eventCategory.createMany({
+    data: categories,
+    skipDuplicates: true
+  });
+
   console.log('Event categories created');
+
 
   // ================================
   // Create Groups
   // ================================
   const groups = [
-    { name: 'Open', description: 'Gruppo Open' },
-    { name: 'Advanced', description: 'Gruppo Advanced' },
-    { name: 'Allenamento', description: 'Gruppo Allenamento' },
-    { name: 'Gruppo Agonistico', description: 'Gruppo Agonistico' }
+    { name: 'Open', description: 'Gruppo Open', level: GroupLevel.OPEN },
+    { name: 'Advanced', description: 'Gruppo Advanced', level: GroupLevel.ADVANCED },
+    { name: 'Allenamento', description: 'Gruppo Allenamento', level: GroupLevel.ALL },
+    { name: 'Gruppo Agonistico', description: 'Gruppo Agonistico', level: GroupLevel.ADVANCED },
   ];
 
   for (const group of groups) {

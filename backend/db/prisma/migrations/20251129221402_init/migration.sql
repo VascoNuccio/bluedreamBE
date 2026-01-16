@@ -3,6 +3,8 @@ CREATE TYPE "Role" AS ENUM ('USER', 'ADMIN', 'SUPERADMIN');
 CREATE TYPE "UserStatus" AS ENUM ('SUBSCRIBED', 'CANCELLED');
 CREATE TYPE "EventStatus" AS ENUM ('SCHEDULED', 'CANCELLED');
 CREATE TYPE "SubscriptionStatus" AS ENUM ('PENDING', 'ACTIVE', 'EXPIRED', 'CANCELLED');
+CREATE TYPE "GroupLevel" AS ENUM ('ALL', 'OPEN', 'ADVANCED', 'DEPTH');
+
 
 -- TABLE: User
 CREATE TABLE "User" (
@@ -22,6 +24,7 @@ CREATE TABLE "User" (
 CREATE TABLE "Group" (
     "id" SERIAL NOT NULL PRIMARY KEY,
     "name" TEXT NOT NULL UNIQUE,
+    "level" "GroupLevel" NOT NULL DEFAULT 'ALL',
     "description" TEXT
 );
 
@@ -56,8 +59,9 @@ CREATE TABLE "UserGroup" (
 
 -- TABLE: EventCategory
 CREATE TABLE "EventCategory" (
-    "id" SERIAL NOT NULL PRIMARY KEY,
-    "name" TEXT NOT NULL UNIQUE
+    "id" SERIAL PRIMARY KEY,
+    "code" TEXT NOT NULL UNIQUE,
+    "label" TEXT NOT NULL
 );
 
 -- TABLE: Event

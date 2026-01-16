@@ -1,6 +1,7 @@
 const { PrismaClient, SubscriptionStatus } = require('@prisma/client');
 const prisma = new PrismaClient();
 const z = require('zod');
+const { eventRules, DEFAULT_RULE, LEVEL_HIERARCHY } = require('../config/eventRules');
 
 const ISO_CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF'];
 
@@ -110,25 +111,66 @@ async function hasValidSubscription(userId) {
  * - Subscription valida
  * - Evento schedulato
  * - Posti disponibili
+ * - Requisiti subscription
+ * - Requisiti gruppi
  * @param {string} userId - ID utente
  * @param {number} eventId - ID evento
  * @returns {Promise<{canBook: boolean, message?: string}>}
  */
 async function canBookEvent(userId, eventId) {
-  const hasSubscription = await hasValidSubscription(userId);
-  if (!hasSubscription) return { canBook: false, message: 'Subscription non valida' };
-
+  // Prendo l'evento con la categoria
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    include: { signups: true }
+    include: { category: true, signups: true }
   });
 
-  if (!event || event.status !== SubscriptionStatus.SCHEDULED) {
-    return { canBook: false, message: 'Evento non disponibile' };
+  if (!event) return { canBook: false, message: 'Evento non trovato' };
+  if (event.status !== 'SCHEDULED') return { canBook: false, message: 'Evento non disponibile' };
+  if (event.signups.length >= event.maxSlots) return { canBook: false, message: 'Evento pieno' };
+
+  // Prendo le regole della categoria o default
+  const rule = eventRules[event.category.code] || DEFAULT_RULE;
+
+  // Recupero la subscription attive dell'utente
+  const now = new Date();
+  const activeUserGroups = await prisma.userGroup.findMany({
+    where: {
+      userId,
+      isActive: true,
+      validFrom: { lte: now },
+      validTo: { gte: now }
+    },
+    include: { group: true }
+  });
+
+  // livelli dell’utente
+  const userLevels = activeUserGroups
+    .map(ug => ug.group.level)       // estrai l’enum level dal gruppo
+    .flatMap(level => LEVEL_HIERARCHY[level]); // espandi i livelli inferiori
+
+  // rimuovi duplicati
+  const uniqueUserLevels = [...new Set(userLevels)];
+
+  // Subscription
+  if (rule.requiresSubscription) {
+    const hasSubscription = await hasValidSubscription(userId);
+    if (!hasSubscription) return { canBook: false, message: 'Subscription non valida' };
   }
 
-  if (event.signups.length >= event.maxSlots) {
-    return { canBook: false, message: 'Evento pieno' };
+  // Gruppi (opzionale, futuro)
+  if (rule.requiredGroups?.length) {
+    const userGroups = await prisma.userGroup.findMany({
+      where: { userId, isActive: true },
+      include: { group: true }
+    });
+    const groupNames = userGroups.map(g => g.group.name);
+    const hasGroup = rule.requiredGroups.some(rg => groupNames.includes(rg));
+    if (!hasGroup) return { canBook: false, message: 'Livello utente non autorizzato per questo evento' };
+  }
+
+  // Livello utente
+  if (!rule.allowedLevels.some(level => uniqueUserLevels.includes(level))) {
+    return { canBook: false, message: 'Livello utente non autorizzato per questo evento' };
   }
 
   return { canBook: true };

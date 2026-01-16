@@ -47,10 +47,10 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser()); // Per leggere i cookie
 
-app.use('/api/auth', authRoutes);
-app.use('/api/user', userRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/superadmin', superadminRoutes);
+// app.use('/api/auth', authRoutes);
+// app.use('/api/user', userRoutes);
+// app.use('/api/admin', adminRoutes);
+// app.use('/api/superadmin', superadminRoutes);
 
 /* ================================
    ROUTES

@@ -3,8 +3,16 @@ const { PrismaClient, SubscriptionStatus, UserStatus, EventStatus, Role } = requ
 const prisma = new PrismaClient();
 const { hashPassword } = require('../utils/password');
 const { createSubscriptionWithGroups } = require('../utils/subscription');
+const { validateUserBody, validateEventBody, validateEventPatchBody } = require('../utils/zodValidate');
 
 const router = express.Router();
+
+/**
+ * @swagger
+ * tags:
+ *   - name: Admin
+ *     description: Operazioni di amministrazione
+ */
 
 /* ================================
    CREATE USER (ADMIN + SUBSCRIPTION)
@@ -77,11 +85,21 @@ const router = express.Router();
  */
 router.post('/users', async (req, res) => {
   try {
-    const { email, password, firstName, lastName, role, startDate, endDate, amount, currency, status, groups } = req.body;
+    
+    const validated = validateUserBody(req.body);
 
-    if (!email || !password || !startDate || !endDate || !amount) {
-      return res.status(400).json({ message: 'Campi obbligatori mancanti' });
-    }
+    const {
+      email,
+      password,
+      firstName,
+      lastName,
+      role,
+      startDate,
+      endDate,
+      amount,
+      currency,
+      groups,
+    } = validated;
 
     let user = await prisma.user.findUnique({ where: { email } });
 
@@ -214,86 +232,95 @@ router.post('/users', async (req, res) => {
  *       500:
  *         description: Errore server
  */
-router.put('/users/:id', async (req, res) => {
+router.put("/users/:id", async (req, res) => {
   try {
-    const userId = req.params.id;
+    const userId = Number(req.params.id);
 
     if (!userId) {
-      return res.status(400).json({ message: "ID utente mancante" });
+      return res.status(400).json({ message: "ID utente non valido" });
     }
 
-    const {
-      email,
-      password,
-      firstName,
-      lastName,
-      role,
-      status,
-      startDate,
-      endDate,
-      amount,
-      currency,
-      groups
-    } = req.body;
+    // VALIDAZIONE BODY
+    const validated = validateUserPutBody(req.body);
 
+    // Verifica esistenza utente
     const existingUser = await prisma.user.findUnique({
-      where: { id: userId }
+      where: { id: userId },
     });
 
     if (!existingUser) {
       return res.status(404).json({ message: "Utente non trovato" });
     }
 
-    const userData = {};
+    /* =====================
+       UPDATE USER
+    ===================== */
+    const userData = {
+      email: validated.email,
+      firstName: validated.firstName ?? null,
+      lastName: validated.lastName ?? null,
+      role: validated.role,
+      status: validated.status,
+    };
 
-    if (email) userData.email = email;
-    if (firstName !== undefined) userData.firstName = firstName;
-    if (lastName !== undefined) userData.lastName = lastName;
-    if (role) userData.role = role;
-    if (status) userData.status = status;
-
-    if (password) {
-      userData.password = await hashPassword(password);
+    if (validated.password) {
+      userData.password = await hashPassword(validated.password);
     }
 
     const user = await prisma.user.update({
       where: { id: userId },
-      data: userData
+      data: userData,
     });
 
+    /* =====================
+       UPDATE SUBSCRIPTION
+    ===================== */
     let subscription = null;
 
-    if (startDate || endDate || amount) {
+    const hasSubscriptionData =
+      validated.startDate ||
+      validated.endDate ||
+      validated.amount ||
+      validated.currency;
+
+    if (hasSubscriptionData) {
       const existingSubscription = await prisma.subscription.findFirst({
         where: {
-          userId: userId,
-          status: SubscriptionStatus.ACTIVE
-        }
+          userId,
+          status: SubscriptionStatus.ACTIVE,
+        },
       });
 
       if (existingSubscription) {
         subscription = await prisma.subscription.update({
           where: { id: existingSubscription.id },
           data: {
-            startDate: startDate || existingSubscription.startDate,
-            endDate: endDate || existingSubscription.endDate,
-            amount: amount ?? existingSubscription.amount,
-            currency: currency || existingSubscription.currency
-          }
+            startDate:
+              validated.startDate ?? existingSubscription.startDate,
+            endDate:
+              validated.endDate ?? existingSubscription.endDate,
+            amount:
+              validated.amount ?? existingSubscription.amount,
+            currency:
+              validated.currency ?? existingSubscription.currency,
+          },
         });
       }
     }
 
-    if (Array.isArray(groups)) {
+    /* =====================
+       UPDATE GROUPS
+    ===================== */
+    if (Array.isArray(validated.groups)) {
       await prisma.userGroup.deleteMany({
-        where: { userId }
+        where: { userId },
       });
 
       await prisma.userGroup.createMany({
-        data: groups.map(groupId => ({
+        data: validated.groups.map((groupId) => ({
           userId,
-          groupId
-        }))
+          groupId,
+        })),
       });
     }
 
@@ -304,13 +331,20 @@ router.put('/users/:id', async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
-        status: user.status
+        status: user.status,
       },
-      subscription
+      subscription,
     });
-
   } catch (error) {
-    console.error('Admin update user error:', error);
+    if (error.name === "ZodError") {
+      return res.status(400).json({
+        error: true,
+        message: error.issues.map((e) => e.message).join(", "),
+        errors: error.issues,
+      });
+    }
+
+    console.error("Admin update user error:", error);
     return res
       .status(500)
       .json({ message: "Errore nell'aggiornamento dell'utente" });
@@ -554,6 +588,8 @@ router.get('/users/statuses', (req, res) => {
  *                 type: string
  *               equipment:
  *                 type: string
+ *               note:
+ *                 type: string
  *               location:
  *                 type: string
  *               date:
@@ -571,15 +607,31 @@ router.get('/users/statuses', (req, res) => {
  *       201:
  *         description: Evento creato
  */
-router.post('/events', async (req, res) => {
-  const event = await prisma.event.create({
-    data: {
-      ...req.body,
-      creatorId: req.user.userId
-    }
-  });
+router.post("/events", async (req, res) => {
 
-  res.status(201).json(event);
+  try {
+    const validatedBody = validateEventBody(req.body);
+
+    const event = await prisma.event.create({
+      data: {
+        ...validatedBody,
+        creatorId: req.user.userId,
+      },
+    });
+
+    res.status(201).json(event);
+  } catch (error) {
+    if (error.name === "ZodError") {
+      return res.status(400).json({
+        error: true,
+        message: error.issues.map((e) => e.message).join(", "),
+        errors: error.issues,
+      });
+    }
+
+    console.error("Admin create event error:", error);
+    res.status(500).json({ error: true, message: "Errore interno" });
+  }
 });
 
 /* ================================
@@ -609,13 +661,27 @@ router.post('/events', async (req, res) => {
  *       200:
  *         description: Evento aggiornato
  */
-router.patch('/events/:id', async (req, res) => {
-  const event = await prisma.event.update({
-    where: { id: Number(req.params.id) },
-    data: req.body
-  });
+router.patch("/events/:id", async (req, res) => {
+  try {
+    const validatedBody = validateEventPatchBody(req.body);
 
-  res.json(event);
+    const event = await prisma.event.update({
+      where: { id: Number(req.params.id) },
+      data: validatedBody,
+    });
+
+    res.json(event);
+  } catch (error) {
+    if (error.name === "ZodError") {
+      return res.status(400).json({
+        error: true,
+        message: error.issues.map((e) => e.message).join(", "),
+        errors: error.issues,
+      });
+    }
+
+    res.status(500).json({ error: true, message: "Errore interno" });
+  }
 });
 
 /* ================================
@@ -679,6 +745,8 @@ router.delete('/events/:id', async (req, res) => {
  *                     type: number
  *                   name:
  *                     type: string
+ *                   level:
+ *                     type: string
  *                   description:
  *                     type: string
  *                     nullable: true
@@ -725,9 +793,14 @@ router.get('/groups', async (req, res) => {
  *             type: object
  *             required:
  *               - name
+ *               - level
  *             properties:
  *               name:
  *                 type: string
+ *               level:
+ *                 type: string
+ *                 enum: [ALL, OPEN, ADVANCED, DEPTH]
+ *                 example: OPEN
  *               description:
  *                 type: string
  *     responses:
@@ -739,7 +812,7 @@ router.get('/groups', async (req, res) => {
  *         description: Errore server
  */
 router.post('/groups', async (req, res) => {
-  const { name, description } = req.body;
+  const { name, label, description } = req.body;
 
   if(!name || name.trim() === '') {
     return res.status(400).json({
@@ -748,10 +821,18 @@ router.post('/groups', async (req, res) => {
     });
   }
 
+  if(!label || label.trim() === '') {
+    return res.status(400).json({
+      message: 'Il livello del gruppo è obbligatorio',
+      field: 'name',
+    });
+  }
+
   try {
     const group = await prisma.group.create({
       data: {
         name,
+        label,
         description,
       },
     });
@@ -805,6 +886,8 @@ router.post('/groups', async (req, res) => {
  *             properties:
  *               name:
  *                 type: string
+ *               level:
+ *                 type: string
  *               description:
  *                 type: string
  *     responses:
@@ -822,6 +905,13 @@ router.put('/groups/:id', async (req, res) => {
     return res.status(400).json({
       message: 'Il nome del gruppo è obbligatorio',
       field: 'name',
+    });
+  }
+
+  if(!req.body.level || req.body.level.trim() === '') {
+    return res.status(400).json({
+      message: 'Il livello del gruppo è obbligatorio',
+      field: 'level',
     });
   }
 
@@ -1006,6 +1096,52 @@ router.post('/subscriptions', async (req, res) => {
   const subscription = await createSubscriptionWithGroups({ userId, startDate, endDate, amount, groups });
 
   res.status(201).json(subscription);
+});
+
+/* ================================
+   GET ALL EVENT CATEGORIES
+================================ */
+/**
+ * @swagger
+ * /admin/event-categories:
+ *   get:
+ *     summary: Recupera tutte le categorie di eventi
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista delle categorie
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: integer
+ *                     example: 1
+ *                   code:
+ *                     type: string
+ *                     example: 'COURSE_OPEN'
+ *                   label:
+ *                     type: string
+ *                     example: 'Corso Open'
+ *       500:
+ *         description: Errore server
+ */
+router.get('/event-categories', async (req, res) => {
+  try {
+    const categories = await prisma.eventCategory.findMany({
+      orderBy: { id: 'asc' }  // opzionale, ordina per id
+    });
+    res.json(categories);
+  } catch (err) {
+    console.error('Errore recupero EventCategory:', err);
+    res.status(500).json({ message: 'Errore server' });
+  }
 });
 
 module.exports = router;
