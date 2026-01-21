@@ -4,9 +4,9 @@ const { GroupLevel } = require('@prisma/client');
 // Gerarchia dei livelli
 const LEVEL_HIERARCHY = {
   ALL: ['ALL'],
-  OPEN: ['OPEN'],
-  ADVANCED: ['ADVANCED', 'OPEN'],  // ADVANCED può fare anche OPEN
-  DEPTH: ['DEPTH', 'ADVANCED', 'OPEN']  // DEPTH può fare anche ADVANCED e OPEN
+  OPEN: ['OPEN', 'ALL'],
+  ADVANCED: ['ADVANCED', 'ALL'],
+  DEPTH: ['DEPTH', 'ALL']
 };
 
 // Regola di default
@@ -30,6 +30,7 @@ const eventRules = {
   TRAINING_DEPTH: { requiresSubscription: true, allowedLevels: [GroupLevel.DEPTH] },
 
   // Acque libere
+  OPEN_WATER_ALL: { requiresSubscription: true, allowedLevels: [GroupLevel.ALL] },
   OPEN_WATER_OPEN: { requiresSubscription: true, allowedLevels: [GroupLevel.OPEN] },
   OPEN_WATER_ADVANCE: { requiresSubscription: true, allowedLevels: [GroupLevel.ADVANCED] },
   OPEN_WATER_DEPTH: { requiresSubscription: true, allowedLevels: [GroupLevel.DEPTH] },

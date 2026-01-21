@@ -18,6 +18,7 @@ async function main() {
     { code: 'TRAINING_OPEN', label: 'Allenamento Open' },
     { code: 'TRAINING_ADVANCED', label: 'Allenamento Advanced' },
     { code: 'TRAINING_DEPTH', label: 'Allenamento Depth' },
+    { code: 'OPEN_WATER_ALL', label: 'Acque Libere aperto a tutti' },
     { code: 'OPEN_WATER_OPEN', label: 'Acque Libere Open' },
     { code: 'OPEN_WATER_ADVANCE', label: 'Acque Libere Advance' },
     { code: 'OPEN_WATER_DEPTH', label: 'Acque Libere Depth' },
@@ -46,8 +47,9 @@ async function main() {
   const groups = [
     { name: 'Open', description: 'Gruppo Open', level: GroupLevel.OPEN },
     { name: 'Advanced', description: 'Gruppo Advanced', level: GroupLevel.ADVANCED },
+    { name: 'Depth', description: 'Gruppo Depth', level: GroupLevel.DEPTH },
     { name: 'Allenamento', description: 'Gruppo Allenamento', level: GroupLevel.ALL },
-    { name: 'Gruppo Agonistico', description: 'Gruppo Agonistico', level: GroupLevel.ADVANCED },
+    { name: 'Gruppo Agonistico', description: 'Gruppo Agonistico', level: GroupLevel.DEPTH },
   ];
 
   for (const group of groups) {
