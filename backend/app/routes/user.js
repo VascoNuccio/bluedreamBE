@@ -104,36 +104,65 @@ router.get('/events/month', async (req, res) => {
  *         description: Non autenticato
  */
 router.get('/events/day', async (req, res) => {
-  const { year, month, day } = req.query;
+  try {
+    const { year, month, day } = req.query;
 
-  const events = await prisma.event.findMany({
-    where: {
-      status: EventStatus.SCHEDULED,
-      date: {
-        gte: new Date(year, month - 1, day),
-        lt: new Date(year, month - 1, Number(day) + 1)
-      }
-    },
-    include: {
-      signups: {
-        select: {
-          user: {
-            select: {
-              email: true
+    const userId = Number(req.params.id);
+
+    if (!userId) {
+      return res.status(400).json({ message: "ID utente non valido" });
+    }
+
+    const events = await prisma.event.findMany({
+      where: {
+        status: EventStatus.SCHEDULED,
+        date: {
+          gte: new Date(year, month - 1, day),
+          lt: new Date(year, month - 1, Number(day) + 1)
+        }
+      },
+      include: {
+        signups: {
+          select: {
+            user: {
+              select: {
+                email: true
+              }
             }
           }
         }
       }
-    }
-  });
+    });
 
-  // Trasforma per il FE
-  const formattedEvents = events.map(ev => ({
-    ...ev,
-    partecipanti: ev.signups.map(s => s.user.email)
-  }));
+    // Trasforma eventi per FE
+    const formattedEvents = await Promise.all(
+      events.map(async (ev) => {
+        const { canBook } = await canBookEvent(userId, ev.id); // se può prenotare
+        const minLevel = getEventMinLevel(ev.category.code);    // livello minimo richiesto
 
-  res.json({ events: formattedEvents });
+        return {
+          ...ev,
+          id: ev.id,
+          title: ev.title,
+          description: ev.description,
+          location: ev.location,
+          date: ev.date,
+          startTime: ev.startTime,
+          endTime: ev.endTime,
+          maxSlots: ev.maxSlots,
+          signedUpCount: ev.signups.length,
+          partecipanti: ev.signups.map(s => s.user.email),
+          canBook,
+          minLevel
+        };
+      })
+    );
+
+    res.json({ events: formattedEvents });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Errore server' });
+  }
 });
 
 /* ================================

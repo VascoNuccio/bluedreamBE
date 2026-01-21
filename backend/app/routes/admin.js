@@ -558,6 +558,135 @@ router.get('/users/statuses', (req, res) => {
 });
 
 /* ================================
+   GET MONTH EVENTS (USER)
+================================ */
+/**
+ * @swagger
+ * /user/events/month:
+ *   get:
+ *     summary: Recupera gli eventi del mese
+ *     description: Restituisce tutti gli eventi schedulati del mese indicato
+ *     tags:
+ *       - User
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: year
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           example: 2025
+ *       - in: query
+ *         name: month
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           example: 5
+ *     responses:
+ *       200:
+ *         description: Lista eventi del mese
+ *       401:
+ *         description: Non autenticato
+ */
+router.get('/all-events/month', async (req, res) => {
+  const { year, month, userEmail } = req.query;
+
+  const events = await prisma.event.findMany({
+    where: {
+      date: {
+        gte: new Date(year, month - 1, 1),
+        lt: new Date(year, month, 1),
+      }
+    },
+    include: {
+      signups: {
+        select: {
+          user: { select: { email: true } }
+        }
+      }
+    }
+  });
+
+  // Trasforma per il FE
+  const formattedEvents = events.map(ev => ({
+    ...ev,
+    partecipanti: ev.signups.map(s => s.user.email)
+  }));
+
+  res.json({ events: formattedEvents });
+});
+
+/* ================================
+   GET DAY EVENTS (USER)
+================================ */
+/**
+ * @swagger
+ * /user/events/day:
+ *   get:
+ *     summary: Recupera gli eventi di un giorno specifico
+ *     tags:
+ *       - User
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: year
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           example: 2025
+ *       - in: query
+ *         name: month
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           example: 5
+ *       - in: query
+ *         name: day
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           example: 12
+ *     responses:
+ *       200:
+ *         description: Lista eventi del giorno
+ *       401:
+ *         description: Non autenticato
+ */
+router.get('/all-events/day', async (req, res) => {
+  const { year, month, day } = req.query;
+
+  const events = await prisma.event.findMany({
+    where: {
+      date: {
+        gte: new Date(year, month - 1, day),
+        lt: new Date(year, month - 1, Number(day) + 1)
+      }
+    },
+    include: {
+      signups: {
+        select: {
+          user: {
+            select: {
+              email: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // Trasforma per il FE
+  const formattedEvents = events.map(ev => ({
+    ...ev,
+    partecipanti: ev.signups.map(s => s.user.email)
+  }));
+
+  res.json({ events: formattedEvents });
+});
+
+/* ================================
    CREATE EVENT
 ================================ */
 /**
@@ -708,13 +837,236 @@ router.patch("/events/:id", async (req, res) => {
  *         description: Evento cancellato
  */
 router.delete('/events/:id', async (req, res) => {
-  await prisma.event.update({
-    where: { id: Number(req.params.id) },
-    data: { status: EventStatus.CANCELLED }
+  try {
+    await prisma.event.update({
+      where: { id: Number(req.params.id) },
+      data: { status: EventStatus.CANCELLED }
+    });
+
+    res.json({ message: 'Evento cancellato' });
+  } catch (error) {
+
+    res.status(500).json({
+      error: true,
+      message: "Errore interno"
+    });
+  }
+});
+
+/* ================================
+   DELETE EVENT (hard delete)
+================================ */
+/**
+ * @swagger
+ * /admin/events/{id}/hard:
+ *   delete:
+ *     summary: Elimina definitivamente un evento
+ *     description: >
+ *       Cancella l'evento dal database.
+ *       Tutte le prenotazioni (EventSignup) collegate
+ *       vengono eliminate automaticamente.
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: number
+ *     responses:
+ *       200:
+ *         description: Evento eliminato definitivamente
+ *       404:
+ *         description: Evento non trovato
+ */
+router.delete('/events/:id/hard', async (req, res) => {
+  try {
+    await prisma.event.delete({
+      where: { 
+        id: Number(req.params.id),
+        status: EventStatus.CANCELLED
+       }
+    });
+
+    res.json({ message: 'Evento eliminato definitivamente' });
+  } catch (error) {
+    if (error.code === "P2025") {
+      return res.status(404).json({
+        error: true,
+        message: "Evento non trovato"
+      });
+    }
+
+    res.status(500).json({
+      error: true,
+      message: "Errore interno"
+    });
+  }
+});
+
+
+/* ================================
+   RESTORE EVENT
+================================ */
+/**
+ * @swagger
+ * /admin/events/{id}/restore:
+ *   patch:
+ *     summary: Ripristina un evento cancellato
+ *     description: >
+ *       Riporta un evento dallo stato CANCELLED a SCHEDULED.
+ *       Non modifica altri campi dell'evento.
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: number
+ *           example: 10
+ *     responses:
+ *       200:
+ *         description: Evento ripristinato
+ *       404:
+ *         description: Evento non trovato
+ */
+router.patch("/events/:id/restore", async (req, res) => {
+  try {
+    const event = await prisma.event.update({
+      where: { id: Number(req.params.id) },
+      data: {
+        status: EventStatus.SCHEDULED
+      }
+    });
+
+    res.json(event);
+  } catch (error) {
+
+    res.status(500).json({
+      error: true,
+      message: "Errore interno"
+    });
+  }
+});
+
+
+/* ================================
+   ADMIN - ADD EVENT PARTICIPANTS (BULK)
+   - inserisce uno o più utenti a un evento
+   - ignora duplicati
+================================ */
+/**
+ * @swagger
+ * /admin/events/{eventId}/participants:
+ *   post:
+ *     summary: Aggiunge uno o più partecipanti a un evento
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: eventId
+ *         required: true
+ *         schema:
+ *           type: number
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userIds
+ *             properties:
+ *               userIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["uuid-1", "uuid-2"]
+ *     responses:
+ *       201:
+ *         description: Partecipanti aggiunti
+ */
+router.post('/events/:eventId/participants', async (req, res) => {
+  const eventId = Number(req.params.eventId);
+  const { userIds } = req.body;
+
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return res.status(400).json({ message: 'userIds non valido' });
+  }
+
+  await prisma.eventSignup.createMany({
+    data: userIds.map(userId => ({
+      userId,
+      eventId
+    })),
+    skipDuplicates: true // evita errori se già iscritti
   });
 
-  res.json({ message: 'Evento cancellato' });
+  res.status(201).json({ message: 'Partecipanti aggiunti correttamente' });
 });
+
+/* ================================
+   ADMIN - REMOVE EVENT PARTICIPANTS (BULK)
+   - rimuove uno o più utenti da un evento
+================================ */
+/**
+ * @swagger
+ * /admin/events/{eventId}/participants:
+ *   delete:
+ *     summary: Rimuove uno o più partecipanti da un evento
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: eventId
+ *         required: true
+ *         schema:
+ *           type: number
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userIds
+ *             properties:
+ *               userIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["uuid-1", "uuid-2"]
+ *     responses:
+ *       200:
+ *         description: Partecipanti rimossi
+ */
+router.delete('/events/:eventId/participants', async (req, res) => {
+  const eventId = Number(req.params.eventId);
+  const { userIds } = req.body;
+
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return res.status(400).json({ message: 'userIds non valido' });
+  }
+
+  await prisma.eventSignup.deleteMany({
+    where: {
+      eventId,
+      userId: { in: userIds }
+    }
+  });
+
+  res.json({ message: 'Partecipanti rimossi correttamente' });
+});
+
 
 /* ================================
    GET ALL GROUPS

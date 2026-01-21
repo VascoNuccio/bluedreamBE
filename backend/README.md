@@ -117,6 +117,10 @@ Authorization: Bearer <token>
 
 http://localhost:5000/api/docs see swagger documentation
 
+download file swagger.json or view in brosware
+curl http://localhost:5000/api/swagger.json -o swagger.json
+http://localhost:5000/api/swagger.json
+
 ## Database Management
 
 ### View Database with Prisma Studio

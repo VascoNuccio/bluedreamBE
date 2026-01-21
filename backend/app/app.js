@@ -96,7 +96,27 @@ app.get('/health', (_, res) => {
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
 
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+// Swagger JSON
+//download file swagger.json
+//curl http://localhost:5000/api/swagger.json -o swagger.json
+//http://localhost:5000/api/swagger.json
+app.get('/api/swagger.json', (req, res) => {
+  res.json(swaggerSpec);
+});
+
+// Swagger UI
+// Documentazione Swagger
+app.use(
+  '/api/docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    swaggerOptions: {
+      url: '/api/swagger.json',
+    },
+  })
+);
+
+
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
