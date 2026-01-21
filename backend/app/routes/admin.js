@@ -3,7 +3,7 @@ const { PrismaClient, SubscriptionStatus, UserStatus, EventStatus, Role } = requ
 const prisma = new PrismaClient();
 const { hashPassword } = require('../utils/password');
 const { createSubscriptionWithGroups } = require('../utils/subscription');
-const { validateUserBody, validateEventBody, validateEventPatchBody } = require('../utils/zodValidate');
+const { validateUserPostBody, validateUserPutBody, validateEventBody, validateEventPatchBody } = require('../utils/zodValidate');
 
 const router = express.Router();
 
@@ -86,7 +86,7 @@ const router = express.Router();
 router.post('/users', async (req, res) => {
   try {
     
-    const validated = validateUserBody(req.body);
+    const validated = validateUserPostBody(req.body);
 
     const {
       email,

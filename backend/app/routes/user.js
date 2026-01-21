@@ -1,7 +1,7 @@
 const express = require('express');
 const { PrismaClient, SubscriptionStatus, UserStatus, EventStatus, Role, GroupLevel } = require('@prisma/client');
 const prisma = new PrismaClient();
-const { canBookEvent } = require('../utils/subscription');
+const { canBookEvent, getEventMinLevel } = require('../utils/subscription');
 
 const router = express.Router();
 
