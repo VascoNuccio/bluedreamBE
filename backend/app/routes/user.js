@@ -124,13 +124,10 @@ router.get('/events/day', async (req, res) => {
       include: {
         signups: {
           select: {
-            user: {
-              select: {
-                email: true
-              }
-            }
+            user: { select: { email: true } }
           }
-        }
+        },
+        category: true
       }
     });
 
@@ -138,7 +135,7 @@ router.get('/events/day', async (req, res) => {
     const formattedEvents = await Promise.all(
       events.map(async (ev) => {
         const { canBook } = await canBookEvent(userId, ev.id); // se può prenotare
-        const minLevel = getEventMinLevel(ev.category.code);    // livello minimo richiesto
+        const minLevel = ev.category ? getEventMinLevel(ev.category.code) : 'ALL'; // livello minimo richiesto
 
         return {
           ...ev,
