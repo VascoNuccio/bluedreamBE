@@ -234,7 +234,7 @@ router.post('/users', async (req, res) => {
  */
 router.put("/users/:id", async (req, res) => {
   try {
-    const userId = Number(req.params.id);
+    const userId = req.params.id;
 
     if (!userId) {
       return res.status(400).json({ message: "ID utente non valido" });

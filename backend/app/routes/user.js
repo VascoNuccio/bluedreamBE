@@ -107,7 +107,7 @@ router.get('/events/day', async (req, res) => {
   try {
     const { year, month, day } = req.query;
 
-    const userId = Number(req.params.id);
+    const userId = req.user.userId;
 
     if (!userId) {
       return res.status(400).json({ message: "ID utente non valido" });
