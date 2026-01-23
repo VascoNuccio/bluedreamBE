@@ -1,5 +1,5 @@
 const z = require('zod');
-const { Role, UserStatus } = require('@prisma/client');
+const { Role, UserStatus, EventStatus } = require('@prisma/client');
 
 /* =====================
    Regex
@@ -117,6 +117,8 @@ const baseEventSchema = z.object({
   description: z.string().min(1, "Descrizione obbligatoria"),
   equipment: z.string().min(1, "Attrezzatura obbligatoria"),
   location: z.string().min(1, "Posto obbligatorio"),
+  note: z.string().optional(),
+  status: z.enum(EventStatus).optional(),
 
   date: z
     .string()
