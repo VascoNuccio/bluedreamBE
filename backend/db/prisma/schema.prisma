@@ -78,6 +78,7 @@ model Subscription {
   startDate  DateTime
   endDate    DateTime
   amount     Float
+  ingressi   Int @default(32)
   currency   String             @default("EUR")
   status     SubscriptionStatus @default(PENDING)
   paymentRef String?

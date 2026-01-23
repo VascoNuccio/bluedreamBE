@@ -19,10 +19,43 @@ const baseUserFields = {
   role: z.enum(Role).optional(),
   status: z.enum(UserStatus).optional(),
 
-  startDate: z.string().regex(dateRegex, "Formato data non valido"),
-  endDate: z.string().regex(dateRegex, "Formato data non valido"),
+  startDate: z
+    .string()
+    .regex(dateRegex, "Formato data non valido (YYYY-MM-DD)")
+    .refine((value) => {
+      const [y, m, d] = value.split("-").map(Number);
+      const date = new Date(y, m - 1, d);
+      return (
+        date.getFullYear() === y &&
+        date.getMonth() === m - 1 &&
+        date.getDate() === d
+      );
+    }, "Data non valida")
+    .transform((value) => {
+    const [y, m, d] = value.split("-").map(Number);
+    return new Date(y, m - 1, d); // <-- ritorna oggetto Date
+  }),
+
+  endDate: z
+    .string()
+    .regex(dateRegex, "Formato data non valido (YYYY-MM-DD)")
+    .refine((value) => {
+      const [y, m, d] = value.split("-").map(Number);
+      const date = new Date(y, m - 1, d);
+      return (
+        date.getFullYear() === y &&
+        date.getMonth() === m - 1 &&
+        date.getDate() === d
+      );
+    }, "Data non valida")
+    .transform((value) => {
+    const [y, m, d] = value.split("-").map(Number);
+    return new Date(y, m - 1, d); // <-- ritorna oggetto Date
+  }),
 
   amount: z.coerce.number().positive("L'importo deve essere maggiore di 0"),
+
+  ingressi: z.coerce.number().positive("Gli ingressi devono essere maggiori di 0"),
 
   currency: z.string().length(3).optional(),
 

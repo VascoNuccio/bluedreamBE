@@ -61,6 +61,7 @@ router.get('/template/download', async (req, res) => {
     { header: 'startDate', key: 'startDate', width: 15 },
     { header: 'endDate', key: 'endDate', width: 15 },
     { header: 'amount', key: 'amount', width: 12 },
+    { header: 'ingressi', key: 'ingressi', width: 12 },
     { header: 'currency', key: 'currency', width: 10 },
     { header: 'status', key: 'status', width: 20 }
   ];
@@ -223,6 +224,7 @@ router.post(
               startDateCell,
               endDateCell,
               amountCell,
+              ingressiCell,
               currencyCell,
               statusCell
             ] = rows[i].values.slice(1);
@@ -230,6 +232,7 @@ router.post(
             const startDate = startDateCell;
             const endDate = endDateCell;
             const amount = amountCell;
+            const ingressi = ingressiCell;
             const currency = cellValueToString(currencyCell) || 'EUR';
             const status = cellValueToString(statusCell) || SubscriptionStatus.PENDING;
 
@@ -239,14 +242,14 @@ router.post(
               if (subscriptionIdCell) {
                 await tx.subscription.update({
                   where: { id: subscriptionIdCell },
-                  data: { startDate, endDate, amount, currency, status }
+                  data: { startDate, endDate, amount, ingressi, currency, status }
                 });
               } else {
                 // Non avendo ID, usiamo upsert per userId+startDate+endDate come chiave virtuale
                 await tx.subscription.upsert({
                   where: { id: subscriptionIdCell || 0 }, // dummy per upsert
-                  update: { startDate, endDate, amount, currency, status },
-                  create: { userId: userIdCell, startDate, endDate, amount, currency, status }
+                  update: { startDate, endDate, amount, ingressi, currency, status },
+                  create: { userId: userIdCell, startDate, endDate, amount, ingressi, currency, status }
                 });
               }
               report.subscriptions.created++;

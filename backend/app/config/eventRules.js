@@ -3,10 +3,10 @@ const { GroupLevel } = require('@prisma/client');
 
 // Gerarchia dei livelli
 const LEVEL_HIERARCHY = {
-  ALL: ['ALL'],
-  OPEN: ['OPEN', 'ALL'],
-  ADVANCED: ['ADVANCED', 'ALL'],
-  DEPTH: ['DEPTH', 'ALL']
+  ALL: [GroupLevel.ALL],
+  OPEN: [GroupLevel.OPEN, GroupLevel.ALL],
+  ADVANCED: [GroupLevel.ADVANCED, GroupLevel.ALL],
+  DEPTH: [GroupLevel.DEPTH, GroupLevel.ALL]
 };
 
 // Regola di default

@@ -301,6 +301,8 @@ router.put("/users/:id", async (req, res) => {
               validated.endDate ?? existingSubscription.endDate,
             amount:
               validated.amount ?? existingSubscription.amount,
+            ingressi:
+              validated.ingressi ?? existingSubscription.ingressi,
             currency:
               validated.currency ?? existingSubscription.currency,
           },
@@ -316,11 +318,25 @@ router.put("/users/:id", async (req, res) => {
         where: { userId },
       });
 
+      const activeSubscription = await prisma.subscription.findFirst({
+        where: { userId, status: SubscriptionStatus.ACTIVE }
+      });
+    
+      if (!activeSubscription) {
+        return res
+        .status(500)
+        .json({ message: "Non esiste una subscription attiva per assegnare i gruppi"});
+      }
+
       await prisma.userGroup.createMany({
-        data: validated.groups.map((groupId) => ({
+        data: validated.groups.map(groupId => ({
           userId,
           groupId,
-        })),
+          subscriptionId: activeSubscription.id,
+          validFrom: activeSubscription.startDate,
+          validTo: activeSubscription.endDate,
+          isActive: true
+        }))
       });
     }
 
@@ -506,12 +522,94 @@ router.get('/users', async (req, res) => {
  *         description: Utente non trovato
  */
 router.delete('/users/:id', async (req, res) => {
-  await prisma.user.update({
-    where: { id: req.params.id },
-    data: { status: UserStatus.CANCELLED }
-  });
+  try {
+    const userId = req.params.id;
 
-  res.json({ message: 'Utente disabilitato' });
+    // Disabilita utente
+    await prisma.user.update({
+      where: { id: userId },
+      data: { status: UserStatus.CANCELLED }
+    });
+
+    // Rimuove l’utente da TUTTI gli eventi
+    await prisma.eventSignup.deleteMany({
+      where: { userId }
+    });
+
+    res.json({
+      message: 'Utente disabilitato e rimosso da tutti i turni'
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Errore server' });
+  }
+});
+
+/* ================================
+   DELETE USER (force delete)
+================================ */
+/**
+ * @swagger
+ * /admin/users/{id}/force:
+ *   delete:
+ *     summary: Elimina definitivamente un utente
+ *     description: >
+ *       Cancella definitivamente un utente dal database
+ *       rimuovendo anche iscrizioni eventi, gruppi e subscription.
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Utente eliminato definitivamente
+ *       404:
+ *         description: Utente non trovato
+ */
+router.delete('/users/:id/force', async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    await prisma.$transaction([
+      // Rimuove l’utente da TUTTI gli eventi
+      prisma.eventSignup.deleteMany({
+        where: { userId }
+      }),
+
+      // Disattiva/rimuove gruppi associati
+      prisma.userGroup.deleteMany({
+        where: { userId }
+      }),
+
+      // Rimuove subscription
+      prisma.subscription.deleteMany({
+        where: { userId }
+      }),
+
+      // Elimina definitivamente l’utente
+      prisma.user.delete({
+        where: { id: userId }
+      })
+    ]);
+
+    res.json({
+      message: 'Utente eliminato definitivamente'
+    });
+  } catch (err) {
+    console.error(err);
+
+    if (err.code === 'P2025') {
+      return res.status(404).json({ message: 'Utente non trovato' });
+    }
+
+    res.status(500).json({ message: 'Errore server' });
+  }
 });
 
 /* ================================

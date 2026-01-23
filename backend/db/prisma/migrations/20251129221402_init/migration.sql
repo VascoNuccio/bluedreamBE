@@ -35,6 +35,7 @@ CREATE TABLE "Subscription" (
     "startDate" TIMESTAMP(3) NOT NULL,
     "endDate" TIMESTAMP(3) NOT NULL,
     "amount" FLOAT NOT NULL,
+    "ingressi" INT NOT NULL DEFAULT 32,
     "currency" TEXT NOT NULL DEFAULT 'EUR',
     "status" "SubscriptionStatus" NOT NULL DEFAULT 'ACTIVE',
     "paymentRef" TEXT,

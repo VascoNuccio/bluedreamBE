@@ -2,6 +2,7 @@ const express = require('express');
 const { PrismaClient, SubscriptionStatus, UserStatus, EventStatus, Role, GroupLevel } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { canBookEvent, getEventMinLevel } = require('../utils/subscription');
+const { canBookEventByEventId, canCancelEventByEventId } = require('../utils/dateRules');
 
 const router = express.Router();
 
@@ -201,6 +202,12 @@ router.post('/events/book', async (req, res) => {
   const { eventId } = req.body;
   const userId = req.user.userId;
 
+  // controllo che sia un giorno e orario valido per prenotare
+  const check = canBookEventByEventId(eventId);
+  if (!check.canBook) {
+    return res.status(403).json({ message: check.message });
+  }
+
   // Uso dell'utility per controllare subscription e prenotazione
   const { canBook, message } = await canBookEvent(userId, eventId);
   if (!canBook) return res.status(403).json({ message });
@@ -208,6 +215,20 @@ router.post('/events/book', async (req, res) => {
   // Creazione prenotazione
   const signup = await prisma.eventSignup.create({
     data: { userId, eventId }
+  });
+
+  // Trova la subscription attiva dell'utente
+  const activeSubscription = await prisma.subscription.findFirst({
+    where: {
+      userId,
+      status: 'ACTIVE'
+    }
+  });
+
+  // Aggiorna la subscription rimuovendo un ingresso
+  await prisma.subscription.update({
+    where: { id: activeSubscription.id },
+    data: { ingressi: activeSubscription.ingressi - 1 }
   });
 
   res.status(201).json(signup);
@@ -247,10 +268,30 @@ router.post('/events/cancel', async (req, res) => {
   const { eventId } = req.body;
   const userId = req.user.userId;
 
+  // controllo che sia un giorno e orario valido per disdire
+  const check = canCancelEventByEventId(eventId);
+  if (!check.canCancel) {
+    return res.status(403).json({ message: check.message });
+  }
+
   await prisma.eventSignup.delete({
     where: {
       userId_eventId: { userId, eventId }
     }
+  });
+
+  // Trova la subscription attiva dell'utente
+  const activeSubscription = await prisma.subscription.findFirst({
+    where: {
+      userId,
+      status: 'ACTIVE'
+    }
+  });
+
+  // Aggiorna la subscription rimuovendo un ingresso
+  await prisma.subscription.update({
+    where: { id: activeSubscription.id },
+    data: { ingressi: activeSubscription.ingressi + 1 }
   });
 
   res.json({ message: 'Prenotazione cancellata' });

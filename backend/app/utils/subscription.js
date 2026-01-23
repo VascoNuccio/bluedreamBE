@@ -61,6 +61,7 @@ async function createSubscriptionWithGroups({userId, startDate, endDate, amount,
         startDate: validSubscription.startDate,
         endDate: validSubscription.endDate,
         amount: validSubscription.amount,
+        ingressi: validSubscription.ingressi,
         currency: validSubscription.currency,
         status: validSubscription.status
       }
@@ -128,11 +129,28 @@ async function canBookEvent(userId, eventId) {
   if (event.status !== 'SCHEDULED') return { canBook: false, message: 'Evento non disponibile' };
   if (event.signups.length >= event.maxSlots) return { canBook: false, message: 'Evento pieno' };
 
+  const now = new Date();
+  
+  // controllo che l'utente abbia ancora ingressi disponibili
+  const activeIngressi = await prisma.subscription.findFirst({
+    where: {
+      userId: userId,
+      status: 'ACTIVE',          // solo subscription attiva
+      startDate: { lte: now },
+      endDate: { gte: now }
+    },
+    select: {
+      ingressi: true             // prendi solo il campo ingressi
+    }
+  });
+  
+  const availableIngressi = activeIngressi?.ingressi ?? 0;
+  if (availableIngressi <= 0) return { canUse: false, message: "Non hai più ingressi disponibili" };
+
   // Prendo le regole della categoria o default
   const rule = eventRules[event.category.code] || DEFAULT_RULE;
 
   // Recupero la subscription attive dell'utente
-  const now = new Date();
   const activeUserGroups = await prisma.userGroup.findMany({
     where: {
       userId,

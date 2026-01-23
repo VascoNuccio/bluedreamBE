@@ -148,6 +148,7 @@ router.post('/register', async (req, res) => {
         startDate: new Date(),          // inizio subscription
         endDate: new Date(Date.now() + 30*24*60*60*1000), // 30 giorni di esempio
         amount: 0,                      // sarà aggiornato dopo pagamento
+        ingressi: 32,                   // da controllare e aggiornare dopo il pagamento
         currency: 'EUR',
         status: 'PENDING'               // <-- PENDING finché il pagamento non è confermato
       }

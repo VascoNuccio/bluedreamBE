@@ -136,24 +136,30 @@ async function main() {
       endDate: nextMonth,
       amount: 50,
       currency: 'EUR',
+      ingressi: 2,
       status: 'ACTIVE'
     }
   });
 
   // Assign all groups to the subscription
-  const allGroups = await prisma.group.findMany();
-  for (const group of allGroups) {
-    await prisma.userGroup.create({
-      data: {
-        userId: testUser.id,
-        groupId: group.id,
-        subscriptionId: subscription.id,
-        validFrom: now,
-        validTo: nextMonth,
-        isActive: true
-      }
-    });
+  const group = await prisma.group.findFirst({
+    where: { level: 'ADVANCED' }
+  });
+  
+  if (!group) {
+    throw new Error('Gruppo non trovato');
   }
+  
+  await prisma.userGroup.create({
+    data: {
+      userId: testUser.id,
+      groupId: group.id,
+      subscriptionId: subscription.id,
+      validFrom: now,
+      validTo: nextMonth,
+      isActive: true
+    }
+  });
   console.log('Subscription and user groups assigned to test user');
 
   console.log('Seeding completed successfully!');
