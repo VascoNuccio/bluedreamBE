@@ -1,11 +1,11 @@
 {
-  "name": "backend",
+  "name": "bluedream-be",
   "version": "1.0.0",
-  "description": "cd backend\r npm init -y\r npm i express cors\r npm install express\r node server.js",
-  "main": "server.js",
+  "description": "applicazione be per la gestione delle prenotazioni online ai corsi di apnea",
+  "main": "app/app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node app/app.js"
   },
   "prisma": {
     "schema": "db/prisma/schema.prisma"

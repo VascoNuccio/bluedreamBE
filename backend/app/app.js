@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const { version } = require('../package.json');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 
@@ -120,6 +121,7 @@ app.use(
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
+  console.log(`version: ${version}`);
   console.log(`Server running on port ${PORT}`);
 });
 
