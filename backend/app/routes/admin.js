@@ -147,7 +147,8 @@ router.post('/users', async (req, res) => {
         status: subscription.status,
         startDate: subscription.startDate,
         endDate: subscription.endDate,
-        amount: subscription.amount
+        amount: subscription.amount,
+        ingressi: subscription.ingressi
       }
     });
 
