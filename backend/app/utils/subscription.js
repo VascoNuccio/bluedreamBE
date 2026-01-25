@@ -34,10 +34,10 @@ const createSubscriptionSchema = z.object({
  * @param {number[]} params.groups - Array di ID gruppi da assegnare
  * @returns {Promise<Object>} subscription
  */
-async function createSubscriptionWithGroups({userId, startDate, endDate, amount, currency, status, groups}) {
+async function createSubscriptionWithGroups({userId, startDate, endDate, amount, ingressi, currency, status, groups}) {
   
   // VALIDAZIONE INPUT
-  const validSubscription = createSubscriptionSchema.parse({startDate, endDate, amount, currency, status, groups});
+  const validSubscription = createSubscriptionSchema.parse({startDate, endDate, amount, ingressi, currency, status, groups});
 
   // TRANSAZIONE TUTTO INSIEME
   const subscription = await prisma.$transaction(async (tx) => {

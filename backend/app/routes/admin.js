@@ -282,6 +282,7 @@ router.put("/users/:id", async (req, res) => {
       validated.startDate ||
       validated.endDate ||
       validated.amount ||
+      validated.ingressi ||
       validated.currency;
 
     if (hasSubscriptionData) {
