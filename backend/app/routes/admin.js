@@ -1262,7 +1262,7 @@ router.get('/groups', async (req, res) => {
  *         description: Errore server
  */
 router.post('/groups', async (req, res) => {
-  const { name, label, description } = req.body;
+  const { name, level, description } = req.body;
 
   if(!name || name.trim() === '') {
     return res.status(400).json({
@@ -1271,7 +1271,7 @@ router.post('/groups', async (req, res) => {
     });
   }
 
-  if(!label || label.trim() === '') {
+  if(!level || level.trim() === '') {
     return res.status(400).json({
       message: 'Il livello del gruppo è obbligatorio',
       field: 'name',
@@ -1282,7 +1282,7 @@ router.post('/groups', async (req, res) => {
     const group = await prisma.group.create({
       data: {
         name,
-        label,
+        level,
         description,
       },
     });
