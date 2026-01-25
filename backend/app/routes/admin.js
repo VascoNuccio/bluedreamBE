@@ -313,7 +313,7 @@ router.put("/users/:id", async (req, res) => {
     /* =====================
        UPDATE GROUPS
     ===================== */
-    if (Array.isArray(validated.groups)) {
+    if (Array.isArray(validated.groups) && validated.groups.length > 0) {
       await prisma.userGroup.deleteMany({
         where: { userId },
       });
@@ -981,7 +981,7 @@ router.delete('/events/:id', async (req, res) => {
  */
 router.delete('/events/:id/hard', async (req, res) => {
   try {
-    await prisma.event.delete({
+    await prisma.event.deleteMany({
       where: { 
         id: Number(req.params.id),
         status: EventStatus.CANCELLED

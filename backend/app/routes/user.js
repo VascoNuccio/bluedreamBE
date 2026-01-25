@@ -199,47 +199,75 @@ router.get('/events/day', async (req, res) => {
  *         description: Subscription non valida o evento pieno/non disponibile
  */
 router.post('/events/book', async (req, res) => {
-  try{
-    const { eventId } = req.body;
-    const userId = req.user.userId;
+  const { eventId } = req.body;
+  const userId = req.user.userId;
 
-    // controllo che sia un giorno e orario valido per prenotare
-    const check = await canBookEventByEventId(eventId);
-    if (!check.canBook) {
-      return res.status(403).json({ message: check.message });
+  try {
+    // Controllo temporale (fuori transazione)
+    const timeCheck = await canBookEventByEventId(eventId);
+    if (!timeCheck.canBook) {
+      return res.status(403).json({ message: timeCheck.message });
     }
 
-    // Uso dell'utility per controllare subscription e prenotazione
-    const { canBook, message } = await canBookEvent(userId, eventId);
-    if (!canBook) {
-      return res.status(403).json({ message });
+    // Controllo read-only business per frontend (facoltativo)
+    const businessCheck = await canBookEvent(userId, eventId);
+    if (!businessCheck.canBook) {
+      return res.status(403).json({ message: businessCheck.message });
     }
 
-    // Creazione prenotazione
-    const signup = await prisma.eventSignup.create({
-      data: { userId, eventId }
-    });
+    // Prenotazione atomica dentro transazione
+    await prisma.$transaction(async (tx) => {
 
-    // Trova la subscription attiva dell'utente
-    const activeSubscription = await prisma.subscription.findFirst({
-      where: {
-        userId,
-        status: 'ACTIVE'
+      // Lock evento: prendi signups correnti
+      const event = await tx.event.findUnique({
+        where: { id: eventId },
+        include: { signups: true }
+      });
+
+      if (!event || event.status !== 'SCHEDULED') {
+        throw new Error('Evento non disponibile');
       }
+
+      if (event.signups.length >= event.maxSlots) {
+        throw new Error('Evento pieno');
+      }
+
+      // Lock subscription attiva dell’utente
+      const subscription = await tx.subscription.findFirst({
+        where: {
+          userId,
+          status: 'ACTIVE',
+          startDate: { lte: new Date() },
+          endDate: { gte: new Date() }
+        }
+      });
+
+      if (!subscription || subscription.ingressi <= 0) {
+        throw new Error('Ingressi insufficienti');
+      }
+
+      // Inserisci prenotazione
+      await tx.eventSignup.create({
+        data: { userId, eventId }
+      });
+
+      // Decrementa ingressi atomico
+      await tx.subscription.update({
+        where: { id: subscription.id },
+        data: { ingressi: { decrement: 1 } }
+      });
     });
 
-    // Aggiorna la subscription rimuovendo un ingresso
-    await prisma.subscription.update({
-      where: { id: activeSubscription.id },
-      data: { ingressi: activeSubscription.ingressi - 1 }
-    });
-
-    res.status(201).json(eventId);
-  }catch (err) {
+    res.status(201).json({ success: true });
+  } catch (err) {
     console.error('Errore prenotazione:', err);
-    res.status(500).json({ message: 'Errore server' });
+    if (err.message.includes('Unique constraint')) {
+      return res.status(409).json({ message: 'Sei già prenotato' });
+    }
+    res.status(403).json({ message: err.message });
   }
 });
+
 
 /* ================================
    CANCEL EVENT BOOKING
@@ -272,42 +300,54 @@ router.post('/events/book', async (req, res) => {
  *         description: Prenotazione non trovata
  */
 router.post('/events/cancel', async (req, res) => {
-  try{
-    const { eventId } = req.body;
-    const userId = req.user.userId;
+  const { eventId } = req.body;
+  const userId = req.user.userId;
 
-    // controllo che sia un giorno e orario valido per disdire
-    const check = await canCancelEventByEventId(eventId);
-    if (!check.canCancel) {
-      return res.status(403).json({ message: check.message });
+  try {
+    // Controllo temporale per cancel
+    const cancelCheck = await canCancelEventByEventId(eventId);
+    if (!cancelCheck.canCancel) {
+      return res.status(403).json({ message: cancelCheck.message });
     }
 
-    await prisma.eventSignup.delete({
-      where: {
-        userId_eventId: { userId, eventId }
-      }
-    });
+    // Transazione atomica per delete + increment ingressi
+    await prisma.$transaction(async (tx) => {
 
-    // Trova la subscription attiva dell'utente
-    const activeSubscription = await prisma.subscription.findFirst({
-      where: {
-        userId,
-        status: 'ACTIVE'
-      }
-    });
+      // Cancella prenotazione
+      const deleted = await tx.eventSignup.delete({
+        where: { userId_eventId: { userId, eventId } }
+      });
 
-    // Aggiorna la subscription rimuovendo un ingresso
-    await prisma.subscription.update({
-      where: { id: activeSubscription.id },
-      data: { ingressi: activeSubscription.ingressi + 1 }
+      if (!deleted) {
+        throw new Error('Prenotazione non trovata');
+      }
+
+      // Trova subscription attiva
+      const subscription = await tx.subscription.findFirst({
+        where: {
+          userId,
+          status: 'ACTIVE'
+        }
+      });
+
+      if (!subscription) {
+        throw new Error('Subscription attiva non trovata');
+      }
+
+      // Incrementa ingressi atomico
+      await tx.subscription.update({
+        where: { id: subscription.id },
+        data: { ingressi: { increment: 1 } }
+      });
     });
 
     res.json({ message: 'Prenotazione cancellata' });
-  }catch (err) {
-    console.error('Errore cancellazione prenotazione:', err);
-    res.status(500).json({ message: 'Errore server' });
+  } catch (err) {
+    console.error('Errore cancellazione:', err);
+    res.status(500).json({ message: err.message });
   }
 });
+
 
 /* ================================
    GET USER LEVELS

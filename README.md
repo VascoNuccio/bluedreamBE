@@ -1,4 +1,19 @@
-### DEPLOY BE SU RAILWAY
+# DEPLOY BE
+La soluzione completamente gratuita (backend + database)
+
+- Database PostgreSQL su Render (Free)
+  creare il db e mettere il file .env con i puntamenti in ./backend poi lanciare i comandi da cmd all'interno della route backend
+
+  npx prisma migrate dev --name init
+  npx prisma generate
+  node prisma/seed.js
+
+- Backend Node.js + Prisma su Render (Free)
+  eseguire il deploy tramite github e dockerfile  del be
+
+
+# DEPLOY BE SU RAILWAY
+NON E' GRATUITO MA PERFORMANTE COSTO 5-20$ AL MESE
 Railway → Backend Node.js + Prisma + PostgreSQL (Docker)
 
 🟢 FASE 1 — GitHub
