@@ -129,6 +129,14 @@ async function main() {
   const nextMonth = new Date();
   nextMonth.setMonth(now.getMonth() + 1);
 
+  const existing = await prisma.subscription.findFirst({
+    where: {
+      userId: testUser.id,
+      status: 'ACTIVE',
+    },
+  });
+
+if (!existing) {
   const subscription = await prisma.subscription.create({
     data: {
       userId: testUser.id,
@@ -137,8 +145,8 @@ async function main() {
       amount: 50,
       currency: 'EUR',
       ingressi: 2,
-      status: 'ACTIVE'
-    }
+      status: 'ACTIVE',
+    },
   });
 
   // Assign all groups to the subscription
@@ -146,21 +154,22 @@ async function main() {
     where: { level: 'ADVANCED' }
   });
   
-  if (!group) {
-    throw new Error('Gruppo non trovato');
+  if (group) {
+    await prisma.userGroup.create({
+      data: {
+        userId: testUser.id,
+        groupId: group.id,
+        subscriptionId: subscription.id,
+        validFrom: now,
+        validTo: nextMonth,
+        isActive: true
+      }
+    });
+    console.log('Subscription and user groups assigned to test user');
+  }else{
+    console.log('Gruppo non trovato');
   }
-  
-  await prisma.userGroup.create({
-    data: {
-      userId: testUser.id,
-      groupId: group.id,
-      subscriptionId: subscription.id,
-      validFrom: now,
-      validTo: nextMonth,
-      isActive: true
-    }
-  });
-  console.log('Subscription and user groups assigned to test user');
+}
 
   console.log('Seeding completed successfully!');
 }
