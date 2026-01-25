@@ -477,6 +477,7 @@ router.get('/users', async (req, res) => {
         startDate: sub.startDate,
         endDate: sub.endDate,
         amount: sub.amount,
+        ingressi: sub.ingressi,
         currency: sub.currency
       })),
       groups: user.groups.map(ug => ({
