@@ -159,8 +159,9 @@ router.post('/users', async (req, res) => {
     // ERRORE DI VALIDAZIONE
     if (error instanceof ZodError) {
       return res.status(400).json({
-        message: error.errors[0]?.message || "Dati non validi",
-        errors: error.errors // opzionale ma utilissimo
+        error: true,
+        message: error.issues.map((e) => e.message).join(", "),
+        errors: error.issues,
       });
     }
 
