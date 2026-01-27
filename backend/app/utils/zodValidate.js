@@ -6,12 +6,52 @@ const { Role, UserStatus, EventStatus } = require('@prisma/client');
 ===================== */
 const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const dateRegex = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/* =====================
+   Schema USER excel
+===================== */
+const baseUpsertExcelUserFields = {
+  email: z.string().regex(emailRegex, { message: "Email non valida" }),
+
+  password: z
+    .string()
+    .min(8, "La password deve avere almeno 8 caratteri").optional(),
+
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().min(1).optional(),
+
+  role: z.enum(Role).optional(),
+  status: z.enum(UserStatus).optional(),
+};
+
+const validateUpsertUserExcelBody = (body) => {
+  return baseUpsertExcelUserFields.parse(body);
+};
+
+const baseExcelUserFields = {
+  email: z.string().regex(emailRegex, { message: "Email non valida" }),
+
+  password: z
+    .string()
+    .min(8, "La password deve avere almeno 8 caratteri"),
+
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+
+  role: z.enum(Role),
+  status: z.enum(UserStatus),
+};
+
+const validateUserExcelBody = (body) => {
+  return baseExcelUserFields.parse(body);
+};
 
 /* =====================
    Schema USER CREATE & PATCH
 ===================== */
 const baseUserFields = {
-  email: z.string().email("Email non valida"),
+  email: z.string().regex(emailRegex, { message: "Email non valida" }),
 
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
@@ -199,4 +239,6 @@ module.exports = {
   validateUserPutBody,
   validateEventBody,
   validateEventPatchBody,
+  validateUserExcelBody,
+  validateUpsertUserExcelBody
 };

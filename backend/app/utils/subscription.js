@@ -202,8 +202,8 @@ async function canBookEvent(userId, eventId) {
 function getEventMinLevel(categoryCode) {
   const rule = eventRules[categoryCode] || DEFAULT_RULE;
 
-  // Ordina allowedLevels in base alla priorità (ALL=1, OPEN=2, ADVANCED=3, DEPTH=4)
-  const levelPriority = { ALL: 1, OPEN: 2, ADVANCED: 3, DEPTH: 4 };
+  // Ordina allowedLevels in base alla priorità (ALL=1, OPEN=2, ADVANCED=3, DEEP=4)
+  const levelPriority = { ALL: 1, OPEN: 2, ADVANCED: 3, DEEP: 4 };
 
   // Trova il livello più “basso” che consente partecipazione
   const minLevel = rule.allowedLevels.reduce((min, level) => {

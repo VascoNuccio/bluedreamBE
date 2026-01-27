@@ -1266,7 +1266,7 @@ router.get('/groups', async (req, res) => {
  *                 type: string
  *               level:
  *                 type: string
- *                 enum: [ALL, OPEN, ADVANCED, DEPTH]
+ *                 enum: [ALL, OPEN, ADVANCED, DEEP]
  *                 example: OPEN
  *               description:
  *                 type: string

@@ -38,7 +38,7 @@ enum GroupLevel {
   ALL
   OPEN
   ADVANCED
-  DEPTH
+  DEEP
 }
 
 /////////////////////

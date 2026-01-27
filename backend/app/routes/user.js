@@ -370,7 +370,7 @@ router.post('/events/cancel', async (req, res) => {
  *               type: array
  *               items:
  *                 type: string
- *                 enum: [ALL, OPEN, ADVANCED, DEPTH]
+ *                 enum: [ALL, OPEN, ADVANCED, DEEP]
  *                 example: ADVANCED
  */
 router.get('/levels', async (req, res) => {

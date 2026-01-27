@@ -13,24 +13,24 @@ async function main() {
     { code: 'TRY_DIVE', label: 'Lezione Prova' },
     { code: 'COURSE_OPEN', label: 'Corso Open' },
     { code: 'COURSE_ADVANCED', label: 'Corso Advanced' },
-    { code: 'COURSE_DEPTH', label: 'Corso Depth' },
+    { code: 'COURSE_DEEP', label: 'Corso Deep' },
     { code: 'TRAINING_ALL', label: 'Allenamento aperto a tutti' },
     { code: 'TRAINING_OPEN', label: 'Allenamento Open' },
     { code: 'TRAINING_ADVANCED', label: 'Allenamento Advanced' },
-    { code: 'TRAINING_DEPTH', label: 'Allenamento Depth' },
+    { code: 'TRAINING_DEEP', label: 'Allenamento Deep' },
     { code: 'OPEN_WATER_ALL', label: 'Acque Libere aperto a tutti' },
     { code: 'OPEN_WATER_OPEN', label: 'Acque Libere Open' },
     { code: 'OPEN_WATER_ADVANCE', label: 'Acque Libere Advance' },
-    { code: 'OPEN_WATER_DEPTH', label: 'Acque Libere Depth' },
+    { code: 'OPEN_WATER_DEEP', label: 'Acque Libere Deep' },
     { code: 'Y40_ALL', label: 'Uscita Y-40 aperto a tutti' },
     { code: 'Y40_OPEN', label: 'Uscita Y-40 Open' },
     { code: 'Y40_ADVANCED', label: 'Uscita Y-40 Advanced' },
-    { code: 'Y40_DEPTH', label: 'Uscita Y-40 Depth' },
+    { code: 'Y40_DEEP', label: 'Uscita Y-40 Deep' },
     { code: 'EVENT_SPECIAL_FREE', label: 'Evento Speciale Gratuito' },
     { code: 'EVENT_SPECIAL', label: 'Evento Speciale' },
     { code: 'EVENT_SPECIAL_OPEN', label: 'Evento Speciale Open' },
     { code: 'EVENT_SPECIAL_ADVANCED', label: 'Evento Speciale Advanced' },
-    { code: 'EVENT_SPECIAL_DEPTH', label: 'Evento Speciale Depth' },
+    { code: 'EVENT_SPECIAL_DEEP', label: 'Evento Speciale Deep' },
   ];
 
   await prisma.eventCategory.createMany({
@@ -47,9 +47,9 @@ async function main() {
   const groups = [
     { name: 'Open', description: 'Gruppo Open', level: GroupLevel.OPEN },
     { name: 'Advanced', description: 'Gruppo Advanced', level: GroupLevel.ADVANCED },
-    { name: 'Depth', description: 'Gruppo Depth', level: GroupLevel.DEPTH },
+    { name: 'Deep', description: 'Gruppo Deep', level: GroupLevel.DEEP },
     { name: 'Allenamento', description: 'Gruppo Allenamento', level: GroupLevel.ALL },
-    { name: 'Gruppo Agonistico', description: 'Gruppo Agonistico', level: GroupLevel.DEPTH },
+    { name: 'Gruppo Agonistico', description: 'Gruppo Agonistico', level: GroupLevel.DEEP },
   ];
 
   for (const group of groups) {
