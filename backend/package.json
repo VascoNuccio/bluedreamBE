@@ -1,6 +1,6 @@
 {
   "name": "bluedream-be",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "description": "applicazione be per la gestione delle prenotazioni online ai corsi di apnea",
   "main": "app/app.js",
   "scripts": {
