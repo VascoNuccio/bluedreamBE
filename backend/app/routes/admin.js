@@ -4,6 +4,7 @@ const prisma = new PrismaClient();
 const { hashPassword } = require('../utils/password');
 const { createSubscriptionWithGroups } = require('../utils/subscription');
 const { validateUserPostBody, validateUserPutBody, validateEventBody, validateEventPatchBody } = require('../utils/zodValidate');
+const { ZodError } = require("zod");
 
 const router = express.Router();
 
