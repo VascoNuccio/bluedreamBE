@@ -1,6 +1,12 @@
-### modificare il db online
+# modificare il db online
 
 da questa cartella lanciare i seguenti comandi dopo aver aggiornato il file schema.prisma
+
+### importante
+Non modificare i file SQL delle migrazioni già applicate.
+    Se vuoi cambiare lo schema, crea una nuova migrazione con npx prisma migrate dev --name nome_migrazione
+
+### comandi
 
 // crea una commit con le modifiche
 npx prisma migrate dev --name rename_depth_to_deep
