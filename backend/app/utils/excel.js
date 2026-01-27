@@ -1,3 +1,5 @@
+const { startOfMonth, endOfMonth, addWeeks, isAfter, setDay, setMonth } = require('date-fns');
+
 const cellValueToString = (cell) => {
   if (!cell) return null;
   if (typeof cell === "string") return cell;
@@ -100,4 +102,24 @@ const rowToObject = (header, sheet, skipRow = 1) => {
   return Array.isArray(objects) ? objects : [objects];;
 }
 
-module.exports = { cellValueToString, writeObjRow, fileNameWithDate, rowToObject };
+// const dates = generateEventDates(1, 3, 1); // gennaio, 3 mesi, giorno = lunedì
+const generateEventDates = (startMonth, monthCount, dayOfWeek) => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const dates = [];
+
+  for (let m = 0; m < monthCount; m++) {
+    const month = startMonth - 1 + m; // JS mesi 0-based
+    let current = setDay(setMonth(new Date(year, month, 1), month), dayOfWeek, { weekStartsOn: 0 });
+    const monthEnd = endOfMonth(new Date(year, month, 1));
+
+    while (!isAfter(current, monthEnd)) {
+      dates.push(new Date(current)); // crea una copia per sicurezza
+      current = addWeeks(current, 1);
+    }
+  }
+
+  return dates;
+}
+
+module.exports = { cellValueToString, writeObjRow, fileNameWithDate, rowToObject, generateEventDates };

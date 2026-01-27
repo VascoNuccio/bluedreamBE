@@ -11,7 +11,7 @@ const ExcelJS = require('exceljs');
 const multer = require('multer');
 const { hashPassword } = require('../utils/password');
 const { writeObjRow, fileNameWithDate, rowToObject } = require('../utils/excel');
-const { validateUserExcelBody, validateUpsertUserExcelBody } = require('../utils/zodValidate');
+const { validateUserExcelBody, validateUpsertUserExcelBody, validateUpsertSubscriptionExcelBody, validateSubscriptionExcelBody, GroupExcelSchema, UserGroupExcelSchema, EventExcelSchema } = require('../utils/zodValidate');
 
 const prisma = new PrismaClient();
 const router = express.Router();
@@ -53,6 +53,22 @@ const GROUPS_COLUMNS = [
   'groupId',
   'name',
   'description'
+];
+
+const EVENT_COLUMNS = [
+  'title',
+  'description',
+  'equipment',
+  'note',
+  'location',
+  'startTime',
+  'endTime',
+  'maxSlots',
+  'status',
+  'categoryCode',  // EventCategory code (unique) TRAINING_ALL
+  'creatorEmail',  // per collegamento con User
+  'monthCount',    // numero di mesi da generare
+  'dayOfWeek',     // 0 = Domenica, 1 = Lunedì, ..., 6 = Sabato
 ];
 
 /* ================================
@@ -201,68 +217,264 @@ router.post(
       await prisma.$transaction(async tx => {
         /* ================= USERS ================= */
         const usersSheet = workbook.getWorksheet('USERS');
-        const users = rowToObject(USER_COLUMNS, usersSheet);
+        if (!usersSheet) {
+          console.error('Worksheet "USERS" not found!');
+          report.users.errors.push({ error: 'Worksheet "USERS" not found!' });
+        }else{
+          const users = rowToObject(USER_COLUMNS, usersSheet);
 
-        for (let i = 0; i < users.length; i++) {
-          const user = users[i];
-          try {
-            const existingUser = await tx.user.findUnique({
-              where: { email: user.email }
-            });
-            // salva in DB
-            if (existingUser) {
-              const validatedUser = validateUpsertUserExcelBody(user);
-              const updateData = Object.fromEntries(
-                Object.entries(validatedUser)
-                  .filter(([_, v]) => v != null) // filtra null / undefined
-                  .filter(([k]) => ['firstName','lastName','role','status'].includes(k)) // solo i campi che vuoi aggiornare
-              );
-              // Aggiornamento
-              await tx.user.update({
-                where: { email: validatedUser.email },
-                data: updateData
+          for (let i = 0; i < users.length; i++) {
+            const user = users[i];
+            try {
+              const existingUser = await tx.user.findUnique({
+                where: { email: user.email }
               });
-              report.users.updated++;
-            } else {
-              const validatedUser = validateUserExcelBody(user);
-              // Creazione
-              await tx.user.create({
-                data: {
-                  email: validatedUser.email,
-                  firstName: validatedUser.firstName,
-                  lastName: validatedUser.lastName,
-                  role: validatedUser.role,
-                  status: validatedUser.status,
-                  password: validatedUser.password
-                }
-              });
-              report.users.created++;
+              // salva in DB
+              if (existingUser) {
+                const validatedUser = validateUpsertUserExcelBody(user);
+                const updateData = Object.fromEntries(
+                  Object.entries(validatedUser)
+                    .filter(([_, v]) => v != null) // filtra null / undefined
+                    .filter(([k]) => ['firstName','lastName','role','status'].includes(k)) // solo i campi che vuoi aggiornare
+                );
+                // Aggiornamento
+                await tx.user.update({
+                  where: { email: validatedUser.email },
+                  data: updateData
+                });
+                report.users.updated++;
+              } else {
+                const validatedUser = validateUserExcelBody(user);
+                // Creazione
+                await tx.user.create({
+                  data: {
+                    email: validatedUser.email,
+                    firstName: validatedUser.firstName,
+                    lastName: validatedUser.lastName,
+                    role: validatedUser.role,
+                    status: validatedUser.status,
+                    password: validatedUser.password
+                  }
+                });
+                report.users.created++;
+              }
+            } catch (e) {
+              report.users.errors.push({ row: i + 2, email: user.email, error: e.message });
             }
-          } catch (e) {
-            report.users.errors.push({ row: i + 2, email: user.email, error: e.message });
           }
         }
+
+        /* ================= SUBSCRIPTIONS ================= */
+        const subsSheet = workbook.getWorksheet('SUBSCRIPTIONS');
+        if (!subsSheet) {
+          console.error('Worksheet "SUBSCRIPTIONS" not found!');
+          report.users.errors.push({ error: 'Worksheet "SUBSCRIPTIONS" not found!' });
+        }else{
+          const subscriptions = rowToObject(SUBSCRIPTION_COLUMNS, subsSheet);
+
+          for (let i = 0; i < subscriptions.length; i++) {
+            const subscription = subscriptions[i];
+          
+            try {
+              // Controllo se la subscription con ID esiste
+              const existingSubscription = subscription.id
+                ? await tx.subscription.findUnique({
+                    where: { id: subscription.id }
+                  })
+                : null;
+                
+              if (existingSubscription) {
+                // UPDATE subscription esistente
+                const validatedSub = validateUpsertSubscriptionExcelBody(subscription);
+              
+                const updateData = Object.fromEntries(
+                  Object.entries(validatedSub)
+                    .filter(([_, v]) => v != null)
+                    .filter(([k]) =>
+                      ['startDate','endDate','amount','ingressi','currency','status'].includes(k)
+                    )
+                );
+              
+                await tx.subscription.update({
+                  where: { id: existingSubscription.id },
+                  data: updateData
+                });
+              
+                report.subscriptions.updated++;
+              
+              } else {
+                // Creo la nuova subscription ACTIVE
+                const validatedSub = validateSubscriptionExcelBody(subscription);
+
+                // Nessuna subscription con questo ID
+                // controllo se esiste una ACTIVE per lo user
+                const activeSubscription = await tx.subscription.findFirst({
+                  where: {
+                    userId: validatedSub.userId,
+                    status: 'ACTIVE'
+                  }
+                });
+              
+                if (activeSubscription) {
+                  // disattivo la vecchia
+                  await tx.subscription.update({
+                    where: { id: activeSubscription.id },
+                    data: { status: 'CANCELLED' }
+                  });
+                }
+              
+                await tx.subscription.create({
+                  data: {
+                    userId: validatedSub.userId,
+                    startDate: validatedSub.startDate,
+                    endDate: validatedSub.endDate,
+                    amount: validatedSub.amount,
+                    ingressi: validatedSub.ingressi,
+                    currency: validatedSub.currency,
+                    status: 'ACTIVE'
+                  }
+                });
+              
+                report.subscriptions.created++;
+              }
+            
+            } catch (e) {
+              report.subscriptions.errors.push({
+                row: i + 2,
+                userId: subscription.userId,
+                error: e.message
+              });
+            }
+          }
+        }
+
+        /* ================= GROUPS ================= */
+        const groupsSheet = workbook.getWorksheet('GROUPS');
+
+        if (!groupsSheet) {
+          console.error('Worksheet "GROUPS" not found!');
+          report.groups.errors.push({
+            error: 'Worksheet "GROUPS" not found!',
+          });
+        } else {
+          const groups = rowToObject(GROUPS_COLUMNS, groupsSheet);
+        
+          for (let i = 0; i < groups.length; i++) {
+            const group = groups[i];
+          
+            try {
+              const validated = GroupExcelSchema.parse(group);
+            
+              const existingGroup = await tx.group.findUnique({
+                where: { name: validated.name },
+              });
+            
+              if (existingGroup) {
+                await tx.group.update({
+                  where: { name: validated.name },
+                  data: {
+                    description: validated.description,
+                    level: validated.level,
+                  },
+                });
+                report.groups.updated++;
+              } else {
+                await tx.group.create({
+                  data: {
+                    name: validated.name,
+                    description: validated.description,
+                    level: validated.level,
+                  },
+                });
+                report.groups.created++;
+              }
+            } catch (e) {
+              report.groups.errors.push({
+                row: i + 2,
+                name: group.name,
+                error: e.message,
+              });
+            }
+          }
+        }
+
+        /* ================= USER_GROUPS ================= */
+        const ugSheet = workbook.getWorksheet('USER_GROUPS');
+
+        if (!ugSheet) {
+          console.error('Worksheet "USER_GROUPS" not found!');
+          report.userGroups.errors.push({
+            error: 'Worksheet "USER_GROUPS" not found!',
+          });
+        } else {
+          const userGroups = rowToObject(USER_GROUPS_COLUMNS, ugSheet);
+        
+          for (let i = 0; i < userGroups.length; i++) {
+            const ug = userGroups[i];
+          
+            try {
+              const validated = UserGroupExcelSchema.parse(ug);
+            
+              const group = await tx.group.findUnique({
+                where: { name: validated.groupName },
+              });
+            
+              if (!group) {
+                throw new Error(`Group not found: ${validated.groupName}`);
+              }
+            
+              const existingUG = await tx.userGroup.findUnique({
+                where: {
+                  userId_groupId_subscriptionId: {
+                    userId: validated.userId,
+                    groupId: group.id,
+                    subscriptionId: validated.subscriptionId,
+                  },
+                },
+              });
+            
+              if (existingUG) {
+                await tx.userGroup.update({
+                  where: {
+                    userId_groupId_subscriptionId: {
+                      userId: validated.userId,
+                      groupId: group.id,
+                      subscriptionId: validated.subscriptionId,
+                    },
+                  },
+                  data: {
+                    validFrom: validated.validFrom,
+                    validTo: validated.validTo,
+                    isActive: validated.isActive,
+                  },
+                });
+                report.userGroups.updated++;
+              } else {
+                await tx.userGroup.create({
+                  data: {
+                    userId: validated.userId,
+                    groupId: group.id,
+                    subscriptionId: validated.subscriptionId,
+                    validFrom: validated.validFrom,
+                    validTo: validated.validTo,
+                    isActive: validated.isActive,
+                  },
+                });
+                report.userGroups.created++;
+              }
+            } catch (e) {
+              report.userGroups.errors.push({
+                row: i + 2,
+                userId: ug.userId,
+                group: ug.groupName,
+                error: e.message,
+              });
+            }
+          }
+        }
+
       });
-
-      /* ================= SUBSCRIPTIONS ================= */
-      const subsSheet = workbook.getWorksheet('SUBSCRIPTIONS');
-      const SUBSCRIPTION_COLUMNS = [
-        'id',
-        'userId',
-        'startDate',
-        'endDate',
-        'amount',
-        'ingressi',
-        'currency',
-        'status'
-      ]
-      
-      /* ================= GROUPS ================= */
-      const groupsSheet = workbook.getWorksheet('GROUPS');
-
-      /* ================= USER_GROUPS ================= */
-      const ugSheet = workbook.getWorksheet('USER_GROUPS');
-
+          
       res.json({ message: 'Import completato', report });
 
     } catch (err) {
@@ -272,20 +484,52 @@ router.post(
   }
 );
 
-/* ================================
-   UPLOAD ADMIN EXCEL TEMPLATE
-================================ */
+/*=====================================
+  EVENTS TEMPLATE
+=======================================*/
+
 /**
  * @swagger
- * /superadmin/template/upload:
- *   post:
- *     summary: Upload template Excel amministrativo
- *     description: >
- *       Carica un file Excel multi-sheet e aggiorna il database
- *       (USERS, SUBSCRIPTIONS, GROUPS, USER_GROUPS) in modo
- *       transazionale e puntuale.
+ * /superadmin/template/events/download:
+ *   get:
+ *     summary: Scarica template Excel per eventi
+ *     description: Restituisce un file Excel vuoto con le colonne corrette per import eventi.
  *     tags:
- *       - Admin
+ *       - Events
+ *     responses:
+ *       200:
+ *         description: Template Excel generato
+ *         content:
+ *           application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+ *             schema:
+ *               type: string
+ *               format: binary
+ */
+router.get('/template/events/download', async (req, res) => {
+  try {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('EVENTS');
+    sheet.addRow(EVENT_COLUMNS); // header
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="event_template.xlsx"');
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Errore nella generazione del template' });
+  }
+});
+
+/**
+ * @swagger
+ * /superadmin/template/events/upload:
+ *   post:
+ *     summary: Carica file Excel con eventi
+ *     description: >
+ *       Carica un file Excel con eventi e li inserisce nel database.
+ *       Gestisce la generazione di eventi settimanali per il numero di mesi indicati.
+ *     tags:
+ *       - Events
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -301,211 +545,87 @@ router.post(
  *     responses:
  *       200:
  *         description: Import completato
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 report:
+ *                   type: object
  *       400:
  *         description: File non valido
  *       500:
  *         description: Errore server
  */
-router.post(
-  '/template/upload',
-  upload.single('file'),
-  async (req, res) => {
-    if (!req.file) {
-      return res.status(400).json({ message: 'File mancante' });
-    }
+router.post('/superadmin/template/events/upload', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'File non fornito' });
 
-    try {
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(req.file.buffer);
+  const report = { events: { created: 0, errors: [] } };
+  const workbook = new ExcelJS.Workbook();
 
-      const report = {
-        users: { created: 0, updated: 0, errors: [] },
-        subscriptions: { created: 0, updated: 0, errors: [] },
-        groups: { created: 0, updated: 0, errors: [] },
-        userGroups: { created: 0, updated: 0, errors: [] }
-      };
+  try {
+    await workbook.xlsx.readFile(req.file.path);
+    const sheet = workbook.getWorksheet('EVENTS');
+    if (!sheet) return res.status(400).json({ error: 'Worksheet "EVENTS" non trovata' });
 
-      await prisma.$transaction(async tx => {
-        /* ================= USERS ================= */
-        const usersSheet = workbook.getWorksheet('USERS');
-        if (usersSheet) {
-          const rows = [];
-          usersSheet.eachRow((row, i) => i > 1 && rows.push(row));
+    const rows = [];
+    sheet.eachRow((row, i) => i > 1 && rows.push(row)); // skip header
 
-          for (let i = 0; i < rows.length; i++) {
-            const [
-              userIdCell,
-              emailCell,
-              passwordCell,
-              firstNameCell,
-              lastNameCell,
-              roleCell,
-              statusCell
-            ] = rows[i].values.slice(1);
-
-            const email = cellValueToString(emailCell);
-            const password = cellValueToString(passwordCell);
-            const firstName = cellValueToString(firstNameCell);
-            const lastName = cellValueToString(lastNameCell);
-            const role = cellValueToString(roleCell);
-            const status = cellValueToString(statusCell);
-
-            if (!email) continue;
-
-            try {
-              await tx.user.upsert({
-                where: { email }, // email unica
-                update: {
-                  firstName,
-                  lastName,
-                  role: role || Role.USER,
-                  status: status || UserStatus.SUBSCRIBED,
-                  ...(password ? { password: await hashPassword(password) } : {})
-                },
-                create: {
-                  email,
-                  password: password ? await hashPassword(password) : undefined,
-                  firstName,
-                  lastName,
-                  role: role || Role.USER,
-                  status: status || UserStatus.SUBSCRIBED
-                }
-              });
-              report.users.created++; // contiamo tutti come creati/aggiornati
-            } catch (e) {
-              report.users.errors.push({ row: i + 2, email, error: e.message });
-            }
+    await prisma.$transaction(async (tx) => {
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const raw = {};
+        EVENT_COLUMNS.forEach((col, idx) => {
+          raw[col] = row.getCell(idx + 1).value;
+        });
+      
+        try {
+          // ================== VALIDAZIONE ZOD ==================
+          const validated = EventExcelSchema.parse(raw);
+        
+          // Trova category e creator
+          const category = await tx.eventCategory.findUnique({ where: { code: validated.categoryCode } });
+          if (!category) throw new Error(`Category non trovata: ${validated.categoryCode}`);
+        
+          const creator = await tx.user.findUnique({ where: { email: validated.creatorEmail } });
+          if (!creator) throw new Error(`Creator non trovato: ${validated.creatorEmail}`);
+        
+          // Genera date eventi
+          const dates = generateEventDates(1, validated.monthCount, validated.dayOfWeek);
+        
+          for (const date of dates) {
+            await tx.event.create({
+              data: {
+                title: validated.title,
+                description: validated.description,
+                equipment: validated.equipment,
+                note: validated.note,
+                location: validated.location,
+                date,
+                startTime: validated.startTime,
+                endTime: validated.endTime,
+                maxSlots: validated.maxSlots,
+                status: validated.status,
+                categoryId: category.id,
+                creatorId: creator.id,
+              },
+            });
+            report.events.created++;
           }
+        } catch (e) {
+          report.events.errors.push({
+            row: i + 2,
+            title: raw.title,
+            error: e.errors ? e.errors.map(err => err.message).join(', ') : e.message,
+          });
         }
-
-        /* ================= SUBSCRIPTIONS ================= */
-        const subsSheet = workbook.getWorksheet('SUBSCRIPTIONS');
-        if (subsSheet) {
-          const rows = [];
-          subsSheet.eachRow((row, i) => i > 1 && rows.push(row));
-
-          for (let i = 0; i < rows.length; i++) {
-            const [
-              subscriptionIdCell,
-              userIdCell,
-              startDateCell,
-              endDateCell,
-              amountCell,
-              ingressiCell,
-              currencyCell,
-              statusCell
-            ] = rows[i].values.slice(1);
-
-            const startDate = startDateCell;
-            const endDate = endDateCell;
-            const amount = amountCell;
-            const ingressi = ingressiCell;
-            const currency = cellValueToString(currencyCell) || 'EUR';
-            const status = cellValueToString(statusCell) || SubscriptionStatus.PENDING;
-
-            if (!userIdCell || !startDate || !endDate) continue;
-
-            try {
-              if (subscriptionIdCell) {
-                await tx.subscription.update({
-                  where: { id: subscriptionIdCell },
-                  data: { startDate, endDate, amount, ingressi, currency, status }
-                });
-              } else {
-                // Non avendo ID, usiamo upsert per userId+startDate+endDate come chiave virtuale
-                await tx.subscription.upsert({
-                  where: { id: subscriptionIdCell || 0 }, // dummy per upsert
-                  update: { startDate, endDate, amount, ingressi, currency, status },
-                  create: { userId: userIdCell, startDate, endDate, amount, ingressi, currency, status }
-                });
-              }
-              report.subscriptions.created++;
-            } catch (e) {
-              report.subscriptions.errors.push({ row: i + 2, userId: userIdCell, error: e.message });
-            }
-          }
-        }
-
-        /* ================= GROUPS ================= */
-        const groupsSheet = workbook.getWorksheet('GROUPS');
-        if (groupsSheet) {
-          const rows = [];
-          groupsSheet.eachRow((row, i) => i > 1 && rows.push(row));
-
-          for (let i = 0; i < rows.length; i++) {
-            const [groupIdCell, nameCell, descriptionCell] = rows[i].values.slice(1);
-
-            const name = cellValueToString(nameCell);
-            const description = cellValueToString(descriptionCell);
-
-            if (!name) continue;
-
-            try {
-              await tx.group.upsert({
-                where: { name }, // name è UNIQUE
-                update: { description },
-                create: { name, description }
-              });
-              report.groups.created++;
-            } catch (e) {
-              report.groups.errors.push({ row: i + 2, name, error: e.message });
-            }
-          }
-        }
-
-        /* ================= USER_GROUPS ================= */
-        const ugSheet = workbook.getWorksheet('USER_GROUPS');
-        if (ugSheet) {
-          const rows = [];
-          ugSheet.eachRow((row, i) => i > 1 && rows.push(row));
-
-          for (let i = 0; i < rows.length; i++) {
-            const [
-              userIdCell,
-              groupIdCell,
-              subscriptionIdCell,
-              validFromCell,
-              validToCell,
-              isActiveCell
-            ] = rows[i].values.slice(1);
-
-            const validFrom = validFromCell;
-            const validTo = validToCell;
-            const isActive = isActiveCell ?? true;
-
-            if (!userIdCell || !groupIdCell || !subscriptionIdCell) continue;
-
-            try {
-              await tx.userGroup.upsert({
-                where: {
-                  userId_groupId_subscriptionId: {
-                    userId: userIdCell,
-                    groupId: groupIdCell,
-                    subscriptionId: subscriptionIdCell
-                  }
-                },
-                update: { validFrom, validTo, isActive },
-                create: { userId: userIdCell, groupId: groupIdCell, subscriptionId: subscriptionIdCell, validFrom, validTo, isActive }
-              });
-              report.userGroups.created++;
-            } catch (e) {
-              report.userGroups.errors.push({
-                row: i + 2,
-                userId: userIdCell,
-                groupId: groupIdCell,
-                error: e.message
-              });
-            }
-          }
-        }
-      });
-
-      res.json({ message: 'Import completato', report });
-    } catch (err) {
-      console.error('Template upload error:', err);
-      res.status(500).json({ message: 'Errore lettura Excel' });
-    }
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Errore server', details: err.message });
   }
-);
+});
+
 
 module.exports = router;
