@@ -154,6 +154,15 @@ router.post('/users', async (req, res) => {
 
   } catch (error) {
     console.error('Admin create user error:', error);
+
+    // ERRORE DI VALIDAZIONE
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        message: error.errors[0]?.message || "Dati non validi",
+        errors: error.errors // opzionale ma utilissimo
+      });
+    }
+
     res.status(500).json({ message: 'Errore nella creazione dell\'utente' });
   }
 });
@@ -354,7 +363,9 @@ router.put("/users/:id", async (req, res) => {
       subscription,
     });
   } catch (error) {
-    if (error.name === "ZodError") {
+    console.error("Admin update user error:", error);
+
+    if (error instanceof ZodError) {
       return res.status(400).json({
         error: true,
         message: error.issues.map((e) => e.message).join(", "),
@@ -362,7 +373,6 @@ router.put("/users/:id", async (req, res) => {
       });
     }
 
-    console.error("Admin update user error:", error);
     return res
       .status(500)
       .json({ message: "Errore nell'aggiornamento dell'utente" });
@@ -851,7 +861,9 @@ router.post("/events", async (req, res) => {
 
     res.status(201).json(event);
   } catch (error) {
-    if (error.name === "ZodError") {
+    console.error("Admin create event error:", error);
+
+    if (error instanceof ZodError) {
       return res.status(400).json({
         error: true,
         message: error.issues.map((e) => e.message).join(", "),
@@ -859,7 +871,6 @@ router.post("/events", async (req, res) => {
       });
     }
 
-    console.error("Admin create event error:", error);
     res.status(500).json({ error: true, message: "Errore interno" });
   }
 });
@@ -902,7 +913,8 @@ router.patch("/events/:id", async (req, res) => {
 
     res.json(event);
   } catch (error) {
-    if (error.name === "ZodError") {
+    console.error("error admin events/:id :", error)
+    if (error instanceof ZodError) {
       return res.status(400).json({
         error: true,
         message: error.issues.map((e) => e.message).join(", "),
