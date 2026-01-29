@@ -8,6 +8,16 @@ const { ZodError } = require("zod");
 
 const router = express.Router();
 
+const WEEKDAY_MAP = {
+  LUNEDI: 1,
+  MARTEDI: 2,
+  MERCOLEDI: 3,
+  GIOVEDI: 4,
+  VENERDI: 5,
+  SABATO: 6,
+  DOMENICA: 0,
+};
+
 /**
  * @swagger
  * tags:
@@ -869,6 +879,127 @@ router.post("/events", async (req, res) => {
       return res.status(400).json({
         error: true,
         message: error.issues.map((e) => e.message).join(", "),
+        errors: error.issues,
+      });
+    }
+
+    res.status(500).json({ error: true, message: "Errore interno" });
+  }
+});
+
+/* ================================
+   CREATE RECURRING EVENT 
+================================ */
+/**
+ * @swagger
+ * /admin/events/recurring:
+ *   post:
+ *     summary: Crea eventi ricorrenti settimanali
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *               - date
+ *               - startTime
+ *               - endTime
+ *               - categoryId
+ *               - weekday
+ *               - months
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               equipment:
+ *                 type: string
+ *               note:
+ *                 type: string
+ *               location:
+ *                 type: string
+ *               date:
+ *                 type: string
+ *                 format: date
+ *               startTime:
+ *                 type: string
+ *               endTime:
+ *                 type: string
+ *               maxSlots:
+ *                 type: number
+ *               categoryId:
+ *                 type: number
+ *               weekday:
+ *                 type: string
+ *                 enum: [LUNEDI, MARTEDI, MERCOLEDI, GIOVEDI, VENERDI, SABATO, DOMENICA]
+ *               months:
+ *                 type: string
+ *                 description: numero dei mesi per i quali si vuole ripetere l'evento
+ *     responses:
+ *       201:
+ *         description: Eventi creati
+ */
+router.post("/events/recurring", async (req, res) => {
+  try {
+    const { weekday, months, ...eventBody } = req.body;
+
+    const validatedBody = validateEventBody(eventBody);
+
+    if (!WEEKDAY_MAP.hasOwnProperty(weekday)) {
+      return res.status(400).json({ error: true, message: "Giorno non valido" });
+    }
+
+    const monthsInt = parseInt(months, 10);
+    if (isNaN(monthsInt) || monthsInt <= 0) {
+      return res.status(400).json({ error: true, message: "Months non valido" });
+    }
+
+    const startDate = new Date(validatedBody.date);
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + monthsInt);
+
+    const targetDay = WEEKDAY_MAP[weekday];
+    const eventsToCreate = [];
+
+    let current = new Date(startDate);
+
+    // Portiamo la data al primo giorno valido >= startDate
+    while (current.getDay() !== targetDay) {
+      current.setDate(current.getDate() + 1);
+    }
+
+    while (current <= endDate) {
+      eventsToCreate.push({
+        ...validatedBody,
+        date: new Date(current),
+        creatorId: req.user.userId,
+      });
+
+      // settimana successiva
+      current.setDate(current.getDate() + 7);
+    }
+
+    const createdEvents = await prisma.event.createMany({
+      data: eventsToCreate,
+    });
+
+    res.status(201).json({
+      created: createdEvents.count,
+    });
+
+  } catch (error) {
+    console.error("Admin create recurring event error:", error);
+
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        error: true,
+        message: error.issues.map(e => e.message).join(", "),
         errors: error.issues,
       });
     }
