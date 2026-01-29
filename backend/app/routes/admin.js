@@ -8,6 +8,16 @@ const { ZodError } = require("zod");
 
 const router = express.Router();
 
+const WEEKDAY_MAP = {
+  LUNEDI: 1,
+  MARTEDI: 2,
+  MERCOLEDI: 3,
+  GIOVEDI: 4,
+  VENERDI: 5,
+  SABATO: 6,
+  DOMENICA: 0,
+};
+
 const WEEKDAYS = [
   "LUNEDI",
   "MARTEDI",
@@ -952,12 +962,12 @@ router.post("/events/recurring", async (req, res) => {
     const validatedBody = validateEventBody(eventBody);
 
     if (!WEEKDAYS.includes(weekday)) {
-      return res.status(400).json({error: true, message: "Day non valido",});
+      return res.status(400).json({error: true, message: "weekday non valido",});
     }
 
     const monthsInt = parseInt(months, 10);
     if (isNaN(monthsInt) || monthsInt <= 0) {
-      return res.status(400).json({ error: true, message: "Months non valido" });
+      return res.status(400).json({ error: true, message: "months non valido" });
     }
 
     const startDate = new Date(validatedBody.date);
