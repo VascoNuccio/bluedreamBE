@@ -65,11 +65,11 @@ router.post('/login', async (req, res) => {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'None',
+      sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
       maxAge: 30 * 24 * 60 * 60 * 1000
     });
 
-    res.json({ token, user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role } });
+    res.json({ token, user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, medicalCertificateExpiryDate: user.medicalCertificateExpiryDate } });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ message: 'Errore durante il login' });
@@ -167,13 +167,13 @@ router.post('/register', async (req, res) => {
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'None',
+      sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
       maxAge: 30 * 24 * 60 * 60 * 1000
     });
 
     res.status(201).json({
       token,
-      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role },
+      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, medicalCertificateExpiryDate: user.medicalCertificateExpiryDate },
       subscription: { id: subscription.id, status: subscription.status }
     });
   } catch (error) {
@@ -219,13 +219,13 @@ router.post("/refresh", async (req, res) => {
     res.cookie('refreshToken', newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'None',
+      sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
       maxAge: 30 * 24 * 60 * 60 * 1000
     });
 
     res.json({
       token: newAccessToken,
-      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role }
+      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, medicalCertificateExpiryDate: user.medicalCertificateExpiryDate }
     });
   } catch (error) {
     console.error("Refresh error:", error);
@@ -324,7 +324,7 @@ router.post("/logout", async (req, res) => {
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'None',
+      sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax',
       path: '/',
     });
 

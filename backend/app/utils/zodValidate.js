@@ -54,6 +54,32 @@ const baseUserFields = {
     return new Date(y, m - 1, d); // <-- ritorna oggetto Date
   }),
 
+  medicalCertificateExpiryDate: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.string()
+      .regex(dateRegex, "Formato data non valido (YYYY-MM-DD)")
+      .refine((value) => {
+        const [y, m, d] = value.split("-").map(Number);
+        const date = new Date(y, m - 1, d);
+        return (
+          date.getFullYear() === y &&
+          date.getMonth() === m - 1 &&
+          date.getDate() === d
+        );
+      }, "Data non valida")
+      .refine((value) => {
+        const date = new Date(value);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return date >= today;
+      }, "Il certificato medico è scaduto")
+      .transform((value) => {
+        const [y, m, d] = value.split("-").map(Number);
+        return new Date(y, m - 1, d);
+      })
+      .optional()
+  ),
+
   amount: z.coerce.number().positive("L'importo deve essere maggiore di 0"),
 
   ingressi: z.coerce.number().positive("Gli ingressi devono essere maggiori di 0"),

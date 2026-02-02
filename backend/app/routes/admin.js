@@ -78,6 +78,12 @@ const WEEKDAYS = [
  *               role:
  *                 type: string
  *                 enum: [USER, ADMIN]
+ *               medicalCertificateExpiryDate:
+ *                 description: "Data di scadenza del certificato medico"
+ *                 required: false
+ *                 schema:
+ *                   type: string
+ *                   format: date
  *               startDate:
  *                 type: string
  *                 format: date
@@ -120,6 +126,7 @@ router.post('/users', async (req, res) => {
       amount,
       currency,
       groups,
+      medicalCertificateExpiryDate
     } = validated;
 
     let user = await prisma.user.findUnique({ where: { email } });
@@ -146,7 +153,8 @@ router.post('/users', async (req, res) => {
           firstName: firstName || null,
           lastName: lastName || null,
           role: role || Role.USER,
-          status: UserStatus.SUBSCRIBED
+          status: UserStatus.SUBSCRIBED,
+          medicalCertificateExpiryDate: medicalCertificateExpiryDate
         }
       });
     }
@@ -161,7 +169,8 @@ router.post('/users', async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
-        status: user.status
+        status: user.status,
+        medicalCertificateExpiryDate: user.medicalCertificateExpiryDate
       },
       subscription: {
         id: subscription.id,
@@ -233,6 +242,12 @@ router.post('/users', async (req, res) => {
  *               role:
  *                 type: string
  *                 enum: [USER, ADMIN]
+ *               medicalCertificateExpiryDate:
+ *                 description: "Data di scadenza del certificato medico"
+ *                 schema:
+ *                   type: string
+ *                   format: date
+ *                   example: 2026-12-01
  *               status:
  *                 type: string
  *                 enum: [SUBSCRIBED, CANCELLED]
@@ -293,6 +308,7 @@ router.put("/users/:id", async (req, res) => {
       lastName: validated.lastName ?? null,
       role: validated.role,
       status: validated.status,
+      medicalCertificateExpiryDate: validated.medicalCertificateExpiryDate ?? null,
     };
 
     if (validated.password) {
@@ -381,6 +397,7 @@ router.put("/users/:id", async (req, res) => {
         lastName: user.lastName,
         role: user.role,
         status: user.status,
+        medicalCertificateExpiryDate: user.medicalCertificateExpiryDate
       },
       subscription,
     });
@@ -439,6 +456,9 @@ router.put("/users/:id", async (req, res) => {
  *                   role:
  *                     type: string
  *                     enum: [USER, ADMIN]
+ *                   medicalCertificateExpiryDate:
+ *                     type: string
+ *                     format: date
  *                   status:
  *                     type: string
  *                   subscriptions:
@@ -503,6 +523,7 @@ router.get('/users', async (req, res) => {
       lastName: user.lastName,
       role: user.role,
       status: user.status,
+      medicalCertificateExpiryDate: user.medicalCertificateExpiryDate,
       subscriptions: user.subscriptions.map(sub => ({
         id: sub.id,
         status: sub.status,
