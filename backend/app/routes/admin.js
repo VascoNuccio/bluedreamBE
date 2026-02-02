@@ -904,7 +904,7 @@ router.post("/events", async (req, res) => {
  * @swagger
  * /admin/events/recurring:
  *   post:
- *     summary: Crea eventi ricorrenti settimanali
+ *     summary: Crea eventi ricorrenti settimanali e assegna partecipanti
  *     tags:
  *       - Admin
  *     security:
@@ -949,25 +949,34 @@ router.post("/events", async (req, res) => {
  *                 type: string
  *                 enum: [LUNEDI, MARTEDI, MERCOLEDI, GIOVEDI, VENERDI, SABATO, DOMENICA]
  *               months:
- *                 type: string
- *                 description: numero dei mesi per i quali si vuole ripetere l'evento
+ *                 type: number
+ *                 description: Numero di mesi per i quali si vuole ripetere l'evento
+ *               userIds:
+ *                 type: array
+ *                 items:
+ *                   type: number
+ *                 description: ID degli utenti da iscrivere a tutti gli eventi creati
  *     responses:
  *       201:
- *         description: Eventi creati
+ *         description: Eventi creati e partecipanti assegnati
  */
 router.post("/events/recurring", async (req, res) => {
   try {
-    const { weekday, months, ...eventBody } = req.body;
+    const { weekday, months, userIds = [], ...eventBody } = req.body;
 
     const validatedBody = validateEventBody(eventBody);
 
     if (!WEEKDAYS.includes(weekday)) {
-      return res.status(400).json({error: true, message: "weekday non valido",});
+      return res.status(400).json({ error: true, message: "weekday non valido" });
     }
 
-    const monthsInt = parseInt(months, 10);
-    if (isNaN(monthsInt) || monthsInt <= 0) {
+    const monthsInt = Number(months);
+    if (!Number.isInteger(monthsInt) || monthsInt <= 0) {
       return res.status(400).json({ error: true, message: "months non valido" });
+    }
+
+    if (userIds.length && !Array.isArray(userIds)) {
+      return res.status(400).json({ error: true, message: "userIds non valido" });
     }
 
     const startDate = new Date(validatedBody.date);
@@ -975,32 +984,56 @@ router.post("/events/recurring", async (req, res) => {
     endDate.setMonth(endDate.getMonth() + monthsInt);
 
     const targetDay = WEEKDAY_MAP[weekday];
-    const eventsToCreate = [];
+    const eventsData = [];
 
     let current = new Date(startDate);
 
-    // Portiamo la data al primo giorno valido >= startDate
+    // porta la data al primo weekday valido
     while (current.getDay() !== targetDay) {
       current.setDate(current.getDate() + 1);
     }
 
     while (current <= endDate) {
-      eventsToCreate.push({
+      eventsData.push({
         ...validatedBody,
         date: new Date(current),
         creatorId: req.user.userId,
       });
 
-      // settimana successiva
       current.setDate(current.getDate() + 7);
     }
 
-    const createdEvents = await prisma.event.createMany({
-      data: eventsToCreate,
-    });
+    // TRANSAZIONE: creo eventi + iscrizioni
+    const createdEvents = await prisma.$transaction(
+      eventsData.map(event =>
+        prisma.event.create({
+          data: event,
+        })
+      )
+    );
+
+    // preparo iscrizioni
+    if (userIds.length > 0) {
+      const signups = [];
+
+      for (const event of createdEvents) {
+        for (const userId of userIds) {
+          signups.push({
+            eventId: event.id,
+            userId,
+          });
+        }
+      }
+
+      await prisma.eventSignup.createMany({
+        data: signups,
+        skipDuplicates: true,
+      });
+    }
 
     res.status(201).json({
-      created: createdEvents.count,
+      createdEvents: createdEvents.length,
+      participantsAdded: userIds.length,
     });
 
   } catch (error) {
